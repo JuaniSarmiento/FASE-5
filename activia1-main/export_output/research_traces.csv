@@ -1,0 +1,7 @@
+﻿activity_id,cognitive_state,ai_involvement,content,created_at,student_hash,session_hash,week
+prog2_tp1_colas,EXPLORACION_CONCEPTUAL,0.3,¿Qué es una cola circular?,2025-11-01 10:30:00,2127a15cfc24,399e071b4862,2025-W44
+prog2_tp1_colas,PLANIFICACION,0.4,Voy a usar un arreglo circular,2025-11-01 11:00:00,2127a15cfc24,399e071b4862,2025-W44
+prog2_tp1_colas,EXPLORACION_CONCEPTUAL,0.6,Dame el código completo,2025-11-02 14:15:00,21b107479c1e,a0225f0dca49,2025-W44
+prog2_tp1_colas,IMPLEMENTACION,0.7,Sigo sin entender,2025-11-02 14:45:00,21b107479c1e,a0225f0dca49,2025-W44
+prog2_tp2_pilas,PLANIFICACION,0.2,¿Cuál es la diferencia entre pila y cola?,2025-11-03 09:00:00,2620ac4dd8d6,9aeea5d6ea57,2025-W45
+prog2_tp2_pilas,IMPLEMENTACION,0.3,Implementé push() correctamente,2025-11-03 10:30:00,2620ac4dd8d6,9aeea5d6ea57,2025-W45

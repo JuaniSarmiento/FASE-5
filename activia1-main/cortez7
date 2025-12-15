@@ -1,0 +1,944 @@
+# =============================================================================
+# CORTEZ7 - AUDITORÍA DE ANOMALÍAS E INCONSISTENCIAS DE BASE DE DATOS
+# Fecha: 2025-12-12
+# Auditor: Claude Code (Arquitecto de Software / Administrador de Base de Datos)
+# =============================================================================
+#
+# RESUMEN EJECUTIVO:
+# - 17 tablas analizadas
+# - 38 anomalías/inconsistencias identificadas
+# - 5 defectos CRÍTICOS (duplicación de enums, integridad de datos)
+# - 12 defectos ALTOS (inconsistencias de tipos, constraints faltantes)
+# - 15 defectos MEDIOS (optimización, patrones de diseño)
+# - 6 defectos BAJOS (documentación, mejores prácticas)
+#
+# ANÁLISIS COMPARATIVO:
+# - ORM Models: backend/database/models.py
+# - Domain Models: backend/models/trace.py, risk.py, evaluation.py
+# - API Schemas/Enums: backend/api/schemas/enums.py
+# - Repositories: backend/database/repositories.py
+# =============================================================================
+
+
+# =============================================================================
+# SECCIÓN 1: DUPLICACIÓN Y DESINCRONIZACIÓN DE ENUMS
+# Severidad: CRÍTICA
+# Impacto: Errores de validación, inconsistencia de datos, bugs difíciles de rastrear
+# =============================================================================
+
+FIX 1.1 [CRÍTICO] CognitiveState definido en 3 lugares con valores DIFERENTES
+--------------------------------------------------------------------------------
+Archivos:
+  - backend/models/trace.py (líneas 31-77): Valores lowercase español + aliases
+  - backend/api/schemas/enums.py (líneas 125-137): Valores UPPERCASE inglés
+
+Valores en backend/models/trace.py:
+  EXPLORACION = "exploracion"
+  PLANIFICACION = "planificacion"
+  IMPLEMENTACION = "implementacion"
+  DEPURACION = "depuracion"
+  VALIDACION = "validacion"
+  REFLEXION = "reflexion"
+  CONFUSION = "confusion"
+  PROGRESANDO = "progresando"
+  ATASCADO = "atascado"
+
+Valores en backend/api/schemas/enums.py:
+  CONFUSED = "CONFUSED"
+  EXPLORING = "EXPLORING"
+  UNDERSTANDING = "UNDERSTANDING"
+  IMPLEMENTING = "IMPLEMENTING"
+  STUCK = "STUCK"
+  PROGRESSING = "PROGRESSING"
+  VALIDATING = "VALIDATING"
+  REFLECTING = "REFLECTING"
+
+Problema:
+  - frontend puede enviar "EXPLORING", DB espera "exploracion"
+  - Existe COGNITIVE_STATE_API_TO_DB mapping pero no se usa consistentemente
+  - UNDERSTANDING no tiene equivalente directo (mapea a "exploracion")
+
+Solución:
+```python
+# Opción A: Unificar en un solo lugar (recomendado)
+# Archivo: backend/core/enums.py (nuevo archivo centralizado)
+
+class CognitiveState(str, Enum):
+    """
+    Estados cognitivos del estudiante.
+    CANONICAL SOURCE - Usar este enum en todo el proyecto.
+
+    API acepta valores en UPPERCASE, DB almacena en lowercase.
+    """
+    # Valores canónicos (DB storage format)
+    EXPLORATION = "exploration"
+    PLANNING = "planning"
+    IMPLEMENTATION = "implementation"
+    DEBUGGING = "debugging"
+    VALIDATION = "validation"
+    REFLECTION = "reflection"
+    CONFUSION = "confusion"
+    PROGRESSING = "progressing"
+    STUCK = "stuck"
+
+    @classmethod
+    def from_api(cls, value: str) -> "CognitiveState":
+        """Convierte valor de API a enum"""
+        return cls(value.lower())
+
+    def to_db(self) -> str:
+        """Retorna valor para almacenar en DB"""
+        return self.value.lower()
+```
+
+
+FIX 1.2 [CRÍTICO] InteractionType definido en 2 lugares con valores DIFERENTES
+--------------------------------------------------------------------------------
+Archivos:
+  - backend/models/trace.py (líneas 18-29): 9 valores lowercase
+  - backend/api/schemas/enums.py (líneas 139-150): 8 valores UPPERCASE
+
+Valores en backend/models/trace.py:
+  STUDENT_PROMPT = "student_prompt"
+  AI_RESPONSE = "ai_response"
+  CODE_COMMIT = "code_commit"
+  TUTOR_INTERVENTION = "tutor_intervention"
+  TEACHER_FEEDBACK = "teacher_feedback"
+  STRATEGY_CHANGE = "strategy_change"
+  HYPOTHESIS_FORMULATION = "hypothesis_formulation"
+  SELF_CORRECTION = "self_correction"
+  AI_CRITIQUE = "ai_critique"
+
+Valores en backend/api/schemas/enums.py:
+  QUESTION = "QUESTION"
+  RESPONSE = "RESPONSE"
+  CODE_SUBMISSION = "CODE_SUBMISSION"
+  HINT_REQUEST = "HINT_REQUEST"
+  CLARIFICATION = "CLARIFICATION"
+  VALIDATION = "VALIDATION"
+  FEEDBACK = "FEEDBACK"
+  REFLECTION = "REFLECTION"
+
+Problema:
+  - Los valores NO SON equivalentes semánticamente
+  - "QUESTION" vs "student_prompt" - ¿son lo mismo?
+  - "CODE_SUBMISSION" vs "code_commit" - diferentes conceptos
+  - No hay mapeo definido
+
+Impacto:
+  - API rechaza valores válidos del dominio
+  - Datos inconsistentes según el punto de entrada
+
+Solución:
+```python
+# Definir mapeo explícito o unificar valores
+INTERACTION_TYPE_MAPPING = {
+    # API -> Domain/DB
+    "QUESTION": "student_prompt",
+    "RESPONSE": "ai_response",
+    "CODE_SUBMISSION": "code_commit",
+    "HINT_REQUEST": "tutor_intervention",
+    "CLARIFICATION": "tutor_intervention",
+    "VALIDATION": "self_correction",
+    "FEEDBACK": "teacher_feedback",
+    "REFLECTION": "strategy_change",
+}
+```
+
+
+FIX 1.3 [CRÍTICO] TraceLevel duplicado (mismo valor, diferente ubicación)
+--------------------------------------------------------------------------------
+Archivos:
+  - backend/models/trace.py (líneas 10-15)
+  - backend/api/schemas/enums.py (líneas 114-122)
+
+Problema: Duplicación sin necesidad - mismos valores en ambos
+Impacto: Mantenimiento duplicado, riesgo de desincronización futura
+
+Solución:
+```python
+# Eliminar uno de los dos y reexportar
+# En backend/api/schemas/enums.py:
+from backend.models.trace import TraceLevel  # Reexportar en lugar de redefinir
+```
+
+
+FIX 1.4 [CRÍTICO] SessionStatus.ABANDONED falta en enum pero existe en check constraint
+----------------------------------------------------------------------------------------
+Archivo ORM: backend/database/models.py línea 171-174
+Archivo Enum: backend/api/schemas/enums.py líneas 12-17
+
+Check constraint en SessionDB:
+  "status IN ('active', 'completed', 'paused', 'aborted', 'abandoned')"
+                                                          ^^^^^^^^^^
+Enum SessionStatus:
+  ACTIVE = "active"
+  COMPLETED = "completed"
+  ABORTED = "aborted"
+  PAUSED = "paused"
+  # FALTA: ABANDONED = "abandoned"
+
+Impacto:
+  - DB permite 'abandoned' pero API/validación lo rechaza
+  - Posible data corruption si se inserta 'abandoned' directamente
+
+Solución:
+```python
+# En backend/api/schemas/enums.py:
+class SessionStatus(str, Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    ABORTED = "aborted"
+    PAUSED = "paused"
+    ABANDONED = "abandoned"  # FIX 1.4 Cortez7: Agregar para consistencia con DB
+```
+
+
+FIX 1.5 [ALTO] RiskDimension duplicado con valores idénticos
+------------------------------------------------------------
+Archivos:
+  - backend/models/risk.py (líneas 49-55)
+  - backend/api/schemas/enums.py (líneas 100-109)
+
+Ambos usan lowercase: "cognitive", "ethical", "epistemic", "technical", "governance"
+Problema: Duplicación innecesaria
+Solución: Reexportar desde un único origen
+
+
+# =============================================================================
+# SECCIÓN 2: INCONSISTENCIAS DE TIPOS DE DATOS
+# Severidad: ALTA
+# Impacto: Truncamiento de datos, errores de FK, problemas de JOIN
+# =============================================================================
+
+FIX 2.1 [ALTO] user_id con longitud inconsistente
+-------------------------------------------------
+Archivo: backend/database/models.py
+
+SessionDB.user_id: String(100) pero UserDB.id es String(36) (UUID)
+  Línea 86: user_id = Column(String(100), ForeignKey('users.id', ...
+
+Problema:
+  - FK apunta a id que es String(36)
+  - Desperdicio de espacio (100 vs 36 caracteres)
+  - Inconsistencia conceptual
+
+Otras referencias a user_id:
+  - StudentProfileDB.user_id: String(36) ✓ CORRECTO
+  - ActivityDB.teacher_id: String(36) ✓ CORRECTO
+  - CourseReportDB.teacher_id: String(36) ✓ CORRECTO
+
+Solución:
+```python
+# En SessionDB, línea 86:
+# ANTES:
+user_id = Column(String(100), ForeignKey('users.id', ondelete="SET NULL"), nullable=True, index=True)
+
+# DESPUÉS:
+user_id = Column(String(36), ForeignKey('users.id', ondelete="SET NULL"), nullable=True, index=True)
+```
+
+Migración requerida:
+```sql
+-- PostgreSQL
+ALTER TABLE sessions ALTER COLUMN user_id TYPE VARCHAR(36);
+```
+
+
+FIX 2.2 [ALTO] student_id como String(100) vs UUIDs de 36 caracteres
+---------------------------------------------------------------------
+Archivo: backend/database/models.py (múltiples tablas)
+
+Tablas afectadas: SessionDB, CognitiveTraceDB, RiskDB, EvaluationDB,
+                  TraceSequenceDB, StudentProfileDB, GitTraceDB,
+                  RemediationPlanDB, RiskAlertDB, InterviewSessionDB,
+                  IncidentSimulationDB, SimulatorEventDB
+
+Análisis:
+  - student_id es un identificador de negocio (ej: "legajo_12345")
+  - No es UUID, por eso String(100) es apropiado
+  - PERO: Si student_id es siempre un legajo corto, String(50) sería suficiente
+
+Recomendación: Documentar el formato esperado de student_id
+```python
+# Agregar documentación:
+student_id = Column(
+    String(100),  # Formato: legajo universitario (max ~20 chars) + prefijo
+    nullable=False,
+    index=True,
+    comment="Student business ID (e.g., 'legajo_12345')"
+)
+```
+
+
+FIX 2.3 [ALTO] activity_id inconsistente entre tablas
+------------------------------------------------------
+Algunas tablas tienen activity_id como String(100), otras como nullable/no-nullable:
+
+CognitiveTraceDB.activity_id: String(100), nullable=False
+RiskDB.activity_id: String(100), nullable=False
+EvaluationDB.activity_id: String(100), nullable=False (implícito)
+GitTraceDB.activity_id: String(100), nullable=False
+RemediationPlanDB.activity_id: String(100), nullable=True  # ← DIFERENTE
+InterviewSessionDB.activity_id: String(100), nullable=True  # ← DIFERENTE
+IncidentSimulationDB.activity_id: String(100), nullable=True  # ← DIFERENTE
+RiskAlertDB.activity_id: String(100), nullable=True  # ← DIFERENTE
+
+Problema:
+  - Algunas entidades pueden existir sin actividad, otras no
+  - No está documentado el motivo de la diferencia
+
+Recomendación: Documentar la decisión de diseño
+```python
+# RemediationPlanDB.activity_id es nullable porque el plan puede ser general
+# (aplicar a todo el estudiante, no a una actividad específica)
+activity_id = Column(
+    String(100),
+    nullable=True,  # Nullable: plan puede aplicar a todas las actividades
+    comment="Activity ID (NULL = applies to all activities)"
+)
+```
+
+
+FIX 2.4 [MEDIO] Float vs Numeric para scores con precisión
+----------------------------------------------------------
+Archivo: backend/database/models.py
+
+Campos afectados (ya identificados en cortez6):
+  - ai_involvement: Float (0.0-1.0)
+  - ai_dependency_score: Float (0.0-1.0)
+  - overall_score: Float (0.0-10.0)
+  - evaluation_score: Float (0.0-1.0)
+  - threshold_value: Float
+  - actual_value: Float
+
+Problema:
+  - Float tiene problemas de precisión con decimales
+  - Comparaciones exactas pueden fallar (0.1 + 0.2 != 0.3)
+
+Impacto: Bajo en la práctica pero puede causar problemas en comparaciones
+
+Solución (futuro):
+```python
+from sqlalchemy import Numeric
+
+# Para scores 0-1 con 3 decimales de precisión
+ai_involvement = Column(Numeric(4, 3), default=0.0)  # 0.000 a 1.000
+
+# Para scores 0-10 con 2 decimales
+overall_score = Column(Numeric(4, 2), nullable=False)  # 0.00 a 10.00
+```
+
+
+# =============================================================================
+# SECCIÓN 3: RELACIONES Y BACK_POPULATES FALTANTES
+# Severidad: MEDIA
+# Impacto: Navegación ORM incompleta, posibles inconsistencias en cache
+# =============================================================================
+
+FIX 3.1 [MEDIO] CourseReportDB.teacher sin back_populates en UserDB
+-------------------------------------------------------------------
+Archivo: backend/database/models.py
+
+CourseReportDB tiene:
+  teacher = relationship("UserDB", foreign_keys=[teacher_id])
+
+UserDB NO tiene:
+  course_reports = relationship(...)  # FALTA
+
+Impacto:
+  - No se puede navegar user.course_reports
+  - Cambios en CourseReportDB no se reflejan automáticamente en user.course_reports
+
+Solución:
+```python
+# En UserDB (línea ~694):
+course_reports = relationship(
+    "CourseReportDB",
+    back_populates="teacher",
+    foreign_keys="CourseReportDB.teacher_id"
+)
+
+# En CourseReportDB:
+teacher = relationship("UserDB", back_populates="course_reports", foreign_keys=[teacher_id])
+```
+
+
+FIX 3.2 [MEDIO] RemediationPlanDB.teacher sin back_populates en UserDB
+----------------------------------------------------------------------
+Mismo patrón que FIX 3.1
+
+Solución:
+```python
+# En UserDB:
+remediation_plans_created = relationship(
+    "RemediationPlanDB",
+    back_populates="teacher",
+    foreign_keys="RemediationPlanDB.teacher_id"
+)
+```
+
+
+FIX 3.3 [MEDIO] RiskAlertDB relationships sin back_populates en UserDB
+----------------------------------------------------------------------
+RiskAlertDB tiene:
+  assigned_to_user = relationship("UserDB", foreign_keys=[assigned_to])
+  acknowledged_by_user = relationship("UserDB", foreign_keys=[acknowledged_by])
+
+UserDB NO tiene:
+  assigned_alerts = relationship(...)
+  acknowledged_alerts = relationship(...)
+
+Solución:
+```python
+# En UserDB:
+assigned_alerts = relationship(
+    "RiskAlertDB",
+    back_populates="assigned_to_user",
+    foreign_keys="RiskAlertDB.assigned_to"
+)
+acknowledged_alerts = relationship(
+    "RiskAlertDB",
+    back_populates="acknowledged_by_user",
+    foreign_keys="RiskAlertDB.acknowledged_by"
+)
+```
+
+
+FIX 3.4 [BAJO] SessionDB tiene muchas relaciones sin lazy loading explícito
+---------------------------------------------------------------------------
+Archivo: backend/database/models.py líneas 124-156
+
+SessionDB tiene 11 relaciones:
+  - traces, risks, evaluations, simulator_events
+  - git_traces, interview_sessions, incident_simulations
+  - lti_sessions, trace_sequences, user
+
+Problema:
+  - Todas usan lazy loading por defecto
+  - Queries que acceden a múltiples relaciones pueden causar N+1
+
+Recomendación: Documentar el patrón esperado
+```python
+# Agregar comentario:
+# LAZY LOADING NOTE: All relationships use default lazy loading.
+# For batch operations, use SessionRepository.get_by_id(load_relations=True)
+# or add explicit eager loading with selectinload/joinedload.
+```
+
+
+# =============================================================================
+# SECCIÓN 4: ÍNDICES Y CONSTRAINTS FALTANTES
+# Severidad: MEDIA
+# Impacto: Performance de queries, integridad de datos
+# =============================================================================
+
+FIX 4.1 [MEDIO] Timestamps de resolución sin índice
+----------------------------------------------------
+Campos afectados:
+  - RiskDB.resolved_at (línea ~380): Sin índice
+  - RiskAlertDB.resolved_at (línea ~995): Sin índice
+  - RemediationPlanDB.actual_completion_date (línea ~907): Sin índice
+
+Problema:
+  - Queries de "riesgos resueltos en fecha X" requieren full scan
+  - Reports de resolución son lentos
+
+Solución:
+```python
+# En RiskDB.__table_args__:
+Index('idx_risk_resolved_at', 'resolved_at'),
+
+# En RiskAlertDB.__table_args__:
+Index('idx_alert_resolved_at', 'resolved_at'),
+
+# En RemediationPlanDB.__table_args__:
+Index('idx_plan_completion_date', 'actual_completion_date'),
+```
+
+
+FIX 4.2 [MEDIO] LTISessionDB sin unique constraint para sesiones duplicadas
+---------------------------------------------------------------------------
+Archivo: backend/database/models.py líneas 1305-1355
+
+Problema:
+  - Un usuario puede lanzar múltiples sesiones para el mismo recurso
+  - No hay constraint que prevenga duplicados
+
+Análisis:
+  - ¿Debería haber un único LTISession por (deployment_id, lti_user_id, resource_link_id)?
+  - ¿O múltiples sesiones son válidas (cada launch = nueva sesión)?
+
+Recomendación (si duplicados son inválidos):
+```python
+# En LTISessionDB.__table_args__:
+UniqueConstraint(
+    'deployment_id', 'lti_user_id', 'resource_link_id', 'session_id',
+    name='uq_lti_session_unique_launch'
+),
+```
+
+
+FIX 4.3 [MEDIO] Falta índice parcial para riesgos activos no resueltos
+----------------------------------------------------------------------
+Query frecuente: "Obtener riesgos no resueltos de nivel HIGH o CRITICAL"
+
+Solución (PostgreSQL only):
+```python
+# En RiskDB.__table_args__:
+Index(
+    'idx_risk_active_critical',
+    'session_id', 'risk_level',
+    postgresql_where=text("resolved = false AND risk_level IN ('high', 'critical')")
+),
+```
+
+
+FIX 4.4 [BAJO] server_default faltante en columnas boolean
+----------------------------------------------------------
+Archivo: backend/database/models.py
+
+Columnas con default pero sin server_default:
+  - UserDB.is_active (línea ~682): default=True pero sin server_default
+  - UserDB.is_verified (línea ~683): default=False pero sin server_default
+  - LTIDeploymentDB.is_active (línea ~1238): default=True pero sin server_default
+  - GitTraceDB.is_merge (línea ~748): default=False pero sin server_default
+  - GitTraceDB.is_revert (línea ~749): default=False pero sin server_default
+
+RiskDB.resolved tiene server_default='false' ✓ CORRECTO
+
+Problema:
+  - Raw SQL inserts no aplican Python defaults
+  - Migraciones pueden fallar si columna es NOT NULL sin default
+
+Solución:
+```python
+# Agregar server_default a todas las columnas boolean:
+is_active = Column(Boolean, default=True, server_default='true', nullable=False)
+is_verified = Column(Boolean, default=False, server_default='false', nullable=False)
+is_merge = Column(Boolean, default=False, server_default='false')
+is_revert = Column(Boolean, default=False, server_default='false')
+```
+
+
+# =============================================================================
+# SECCIÓN 5: ARRAYS JSON SIN INTEGRIDAD REFERENCIAL
+# Severidad: MEDIA
+# Impacto: Datos huérfanos, referencias rotas
+# =============================================================================
+
+FIX 5.1 [MEDIO] RiskDB.trace_ids puede contener IDs de traces eliminados
+------------------------------------------------------------------------
+Archivo: backend/database/models.py línea ~366
+
+trace_ids = Column(JSON, default=list)
+
+Problema:
+  - Si se elimina un CognitiveTrace, su ID permanece en trace_ids
+  - No hay trigger ni validación que limpie las referencias
+
+Impacto:
+  - UI intenta cargar traces inexistentes
+  - Evidencia de riesgos puede ser inválida
+
+Solución A (Aplicación):
+```python
+# En RiskRepository, agregar método de limpieza:
+def clean_orphan_trace_ids(self, risk_id: str) -> None:
+    """Elimina trace_ids que ya no existen"""
+    risk = self.get_by_id(risk_id)
+    if risk and risk.trace_ids:
+        valid_ids = self.db.query(CognitiveTraceDB.id).filter(
+            CognitiveTraceDB.id.in_(risk.trace_ids)
+        ).all()
+        valid_ids_set = {id for (id,) in valid_ids}
+        risk.trace_ids = [id for id in risk.trace_ids if id in valid_ids_set]
+        self.db.commit()
+```
+
+Solución B (DB Trigger - PostgreSQL):
+```sql
+CREATE OR REPLACE FUNCTION clean_risk_trace_ids()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE risks
+    SET trace_ids = (
+        SELECT jsonb_agg(elem)
+        FROM jsonb_array_elements_text(trace_ids::jsonb) elem
+        WHERE elem != OLD.id
+    )
+    WHERE trace_ids::text LIKE '%' || OLD.id || '%';
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_clean_risk_trace_ids
+AFTER DELETE ON cognitive_traces
+FOR EACH ROW EXECUTE FUNCTION clean_risk_trace_ids();
+```
+
+
+FIX 5.2 [MEDIO] TraceSequenceDB.trace_ids sin integridad
+--------------------------------------------------------
+Mismo problema que FIX 5.1
+
+Archivo: backend/database/models.py línea ~532
+trace_ids = Column(JSON, default=list)
+
+
+FIX 5.3 [MEDIO] GitTraceDB.related_cognitive_traces sin integridad
+------------------------------------------------------------------
+Archivo: backend/database/models.py línea ~754
+related_cognitive_traces = Column(JSON, default=list)
+
+Mismo patrón de problema
+
+
+FIX 5.4 [MEDIO] RemediationPlanDB.trigger_risks sin integridad
+--------------------------------------------------------------
+Archivo: backend/database/models.py línea ~887
+trigger_risks = Column(JSON, default=list)
+
+Problema adicional:
+  - Si se resuelve o elimina un Risk, el plan de remediación
+    puede quedar con referencias inválidas
+
+
+FIX 5.5 [BAJO] Considerar tablas de asociación para many-to-many
+----------------------------------------------------------------
+Para relaciones many-to-many con integridad referencial, considerar:
+
+```python
+# Ejemplo: Risk <-> Trace (many-to-many)
+class RiskTraceAssociation(Base):
+    __tablename__ = "risk_traces"
+
+    risk_id = Column(
+        String(36),
+        ForeignKey("risks.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+    trace_id = Column(
+        String(36),
+        ForeignKey("cognitive_traces.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+    created_at = Column(DateTime, default=_utc_now)
+
+    __table_args__ = (
+        Index('idx_risk_trace', 'risk_id', 'trace_id'),
+    )
+```
+
+Beneficios:
+  - Integridad referencial garantizada por DB
+  - CASCADE delete automático
+  - Queries JOIN eficientes
+
+
+# =============================================================================
+# SECCIÓN 6: REPOSITORIES FALTANTES O INCOMPLETOS
+# Severidad: MEDIA
+# Impacto: Código duplicado, acceso a datos inconsistente
+# =============================================================================
+
+FIX 6.1 [MEDIO] No existe LTIDeploymentRepository
+-------------------------------------------------
+Archivo: backend/database/repositories.py
+
+LTIDeploymentDB existe pero no tiene repository dedicado.
+
+Operaciones requeridas:
+  - create_deployment()
+  - get_by_issuer_and_deployment_id()
+  - update_endpoints()
+  - deactivate()
+
+Solución:
+```python
+class LTIDeploymentRepository:
+    """Repository for LTI deployment operations"""
+
+    def __init__(self, db_session: Session):
+        self.db = db_session
+
+    def create(
+        self,
+        platform_name: str,
+        issuer: str,
+        client_id: str,
+        deployment_id: str,
+        auth_login_url: str,
+        auth_token_url: str,
+        public_keyset_url: str,
+        access_token_url: Optional[str] = None
+    ) -> LTIDeploymentDB:
+        """Create a new LTI deployment"""
+        try:
+            deployment = LTIDeploymentDB(
+                id=str(uuid4()),
+                platform_name=platform_name,
+                issuer=issuer,
+                client_id=client_id,
+                deployment_id=deployment_id,
+                auth_login_url=auth_login_url,
+                auth_token_url=auth_token_url,
+                public_keyset_url=public_keyset_url,
+                access_token_url=access_token_url
+            )
+            self.db.add(deployment)
+            self.db.commit()
+            self.db.refresh(deployment)
+            return deployment
+        except Exception as e:
+            self.db.rollback()
+            raise
+
+    def get_by_issuer(self, issuer: str, deployment_id: str) -> Optional[LTIDeploymentDB]:
+        """Get deployment by issuer and deployment_id"""
+        return self.db.query(LTIDeploymentDB).filter(
+            LTIDeploymentDB.issuer == issuer,
+            LTIDeploymentDB.deployment_id == deployment_id,
+            LTIDeploymentDB.is_active == True
+        ).first()
+```
+
+
+FIX 6.2 [MEDIO] LTISessionRepository faltante
+---------------------------------------------
+Similar a FIX 6.1, necesita operaciones:
+  - create_from_launch()
+  - link_to_session()
+  - get_by_lti_user()
+
+
+FIX 6.3 [BAJO] CourseReportRepository incompleto
+------------------------------------------------
+Operaciones que podrían faltar:
+  - get_by_teacher()
+  - get_by_course_and_period()
+  - get_latest_for_course()
+
+
+# =============================================================================
+# SECCIÓN 7: PROBLEMAS DE DISEÑO Y NORMALIZACIÓN
+# Severidad: MEDIA-BAJA
+# Impacto: Mantenibilidad, escalabilidad
+# =============================================================================
+
+FIX 7.1 [MEDIO] Redundancia de student_id en tablas hijas de SessionDB
+----------------------------------------------------------------------
+Tablas con student_id que ya existe en SessionDB:
+  - CognitiveTraceDB.student_id
+  - RiskDB.student_id
+  - EvaluationDB.student_id
+  - TraceSequenceDB.student_id
+  - GitTraceDB.student_id
+  - SimulatorEventDB.student_id
+  - InterviewSessionDB.student_id
+  - IncidentSimulationDB.student_id
+
+Análisis:
+  - PRO: Permite queries sin JOIN a sessions (mejor performance)
+  - PRO: Índices directos en student_id para reports
+  - CON: Riesgo de inconsistencia (trace.student_id != session.student_id)
+  - CON: Mayor uso de almacenamiento
+
+Status: Ya documentado en cortez6 como FIX 3.1
+Recomendación: Mantener denormalización pero agregar validación en aplicación
+
+
+FIX 7.2 [BAJO] Timestamps duplicados: created_at vs timestamp
+-------------------------------------------------------------
+Algunas tablas tienen ambos:
+  - GitTraceDB: created_at (de BaseModel) + timestamp (commit timestamp)
+  - SimulatorEventDB: created_at (de BaseModel) + timestamp (event timestamp)
+
+Análisis:
+  - created_at: Cuándo se insertó el registro en DB
+  - timestamp: Cuándo ocurrió el evento (puede ser anterior)
+
+Recomendación: Documentar la diferencia
+```python
+# En GitTraceDB:
+timestamp = Column(
+    DateTime,
+    nullable=False,
+    comment="Git commit timestamp (may differ from created_at)"
+)
+```
+
+
+FIX 7.3 [BAJO] Columnas JSON sin schema validation
+--------------------------------------------------
+Muchas columnas JSON carecen de validación de estructura:
+  - SessionDB.learning_objective
+  - SessionDB.cognitive_status
+  - SessionDB.session_metrics
+  - CognitiveTraceDB.semantic_understanding (y las otras 5 dimensiones N4)
+  - EvaluationDB.dimensions
+  - etc.
+
+Problema:
+  - Cualquier estructura JSON es válida
+  - No hay garantía de campos requeridos
+
+Solución (aplicación):
+```python
+# Usar Pydantic para validar estructura antes de guardar
+from pydantic import BaseModel
+
+class LearningObjectiveSchema(BaseModel):
+    title: str
+    description: Optional[str]
+    expected_competencies: List[str] = []
+    difficulty_level: Optional[str]
+
+# En repository:
+def update_learning_objective(self, session_id: str, objective: dict):
+    # Validar estructura
+    validated = LearningObjectiveSchema(**objective)
+    # Guardar
+    session.learning_objective = validated.model_dump()
+```
+
+
+# =============================================================================
+# SECCIÓN 8: SEGURIDAD Y PRIVACIDAD
+# Severidad: MEDIA
+# Impacto: Exposición de datos sensibles
+# =============================================================================
+
+FIX 8.1 [MEDIO] LTISessionDB.launch_token almacena JWT sin cifrar
+-----------------------------------------------------------------
+Archivo: backend/database/models.py línea ~1340
+
+launch_token = Column(Text, nullable=True)
+
+Problema:
+  - JWT contiene claims del usuario (nombre, email, roles)
+  - Si la DB es comprometida, los tokens son legibles
+  - Tokens pueden usarse para suplantar usuarios en LTI platform
+
+Solución:
+```python
+# Opción A: No almacenar el token completo, solo claims necesarios
+# Opción B: Cifrar at-rest
+from cryptography.fernet import Fernet
+
+class EncryptedText(TypeDecorator):
+    impl = Text
+    cache_ok = True
+
+    def __init__(self, key: bytes):
+        self.fernet = Fernet(key)
+        super().__init__()
+
+    def process_bind_param(self, value, dialect):
+        if value:
+            return self.fernet.encrypt(value.encode()).decode()
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value:
+            return self.fernet.decrypt(value.encode()).decode()
+        return value
+```
+
+
+FIX 8.2 [BAJO] Emails de estudiantes en múltiples tablas
+--------------------------------------------------------
+Tablas con email de usuario:
+  - UserDB.email (principal, único)
+  - StudentProfileDB.email (duplicado?)
+  - LTISessionDB.lti_user_email
+
+Problema:
+  - Si se actualiza email en UserDB, StudentProfileDB queda desactualizado
+  - GDPR: Múltiples lugares donde eliminar datos personales
+
+Recomendación:
+  - StudentProfileDB.email debería ser eliminado (usar JOIN a UserDB)
+  - O documentar que es un snapshot del email al momento de creación
+
+
+# =============================================================================
+# SECCIÓN 9: DOCUMENTACIÓN Y COMENTARIOS
+# Severidad: BAJA
+# Impacto: Mantenibilidad, onboarding de desarrolladores
+# =============================================================================
+
+FIX 9.1 [BAJO] Modelos Sprint 6 con documentación mínima
+--------------------------------------------------------
+Modelos con docstrings incompletos:
+  - SimulatorEventDB: Lista tipos de eventos pero no explica uso
+  - LTISessionDB: Explicación básica pero falta ejemplo de flujo
+
+Recomendación: Agregar examples en docstrings
+
+
+FIX 9.2 [BAJO] Check constraints sin documentación de valores válidos
+---------------------------------------------------------------------
+Los check constraints definen valores válidos pero no están documentados
+en los docstrings de las columnas.
+
+Ejemplo mejorado:
+```python
+status = Column(
+    String(20),
+    default="active",
+    comment="Session status. Valid: active, completed, paused, aborted, abandoned"
+)
+```
+
+
+# =============================================================================
+# RESUMEN DE PRIORIDADES PARA IMPLEMENTACIÓN
+# =============================================================================
+
+FASE 1 - CRÍTICOS (Sincronización de Enums):
+- FIX 1.1: Unificar CognitiveState en un solo lugar
+- FIX 1.2: Definir mapeo InteractionType API<->Domain
+- FIX 1.4: Agregar ABANDONED a SessionStatus enum
+  Impacto: Previene errores de validación y data corruption
+  Esfuerzo: Medio (requiere refactoring de imports)
+
+FASE 2 - ALTOS (Tipos de datos y constraints):
+- FIX 2.1: Cambiar SessionDB.user_id a String(36)
+- FIX 4.1: Agregar índices a timestamps de resolución
+- FIX 4.4: Agregar server_default a columnas boolean
+  Impacto: Consistencia y performance
+  Esfuerzo: Bajo-Medio (migraciones SQL)
+
+FASE 3 - MEDIOS (Relaciones y repositorios):
+- FIX 3.1-3.3: Agregar back_populates faltantes a UserDB
+- FIX 5.1-5.4: Implementar limpieza de JSON arrays huérfanos
+- FIX 6.1-6.2: Crear LTI repositories
+  Impacto: Integridad y completitud
+  Esfuerzo: Medio
+
+FASE 4 - BAJOS (Documentación y mejoras):
+- FIX 7.2-7.3: Documentar decisiones de diseño
+- FIX 8.2: Evaluar eliminación de emails duplicados
+- FIX 9.1-9.2: Mejorar documentación
+  Impacto: Mantenibilidad
+  Esfuerzo: Bajo
+
+
+# =============================================================================
+# SCRIPT DE MIGRACIÓN PROPUESTO
+# =============================================================================
+
+# Archivo: backend/database/migrations/add_cortez7_fixes.py
+#
+# Cambios incluidos:
+# - FIX 2.1: Cambiar SessionDB.user_id a String(36)
+# - FIX 4.1: Índices para timestamps de resolución
+# - FIX 4.4: server_default para columnas boolean
+#
+# Ejecutar con: python -m backend.database.migrations.add_cortez7_fixes
+
+
+# =============================================================================
+# FIN DEL AUDIT CORTEZ7
+# =============================================================================

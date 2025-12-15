@@ -1,0 +1,50 @@
+# Core dependencies
+pydantic>=2.6.0
+RestrictedPython>=7.0  # Cortez3: Secure sandbox for code execution (FIX 1.1)
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+httpx>=0.26.0  # For Ollama HTTP requests
+
+# CLI dependencies
+rich>=13.7.0
+typer>=0.9.0
+
+# Database dependencies
+sqlalchemy>=2.0.25
+alembic>=1.13.1
+psycopg2-binary>=2.9.9  # PostgreSQL adapter
+
+# FastAPI dependencies
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+python-jose[cryptography]>=3.3.0
+PyJWT>=2.8.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0,<5.0.0  # Pin to 4.x for passlib compatibility (5.x breaks passlib)
+email-validator>=2.1.0
+slowapi>=0.1.9  # Rate limiting
+websockets>=12.0  # WebSocket support for real-time updates
+
+# Redis dependencies (P1.2 - Production cache)
+redis>=5.0.0  # Redis client for distributed caching
+hiredis>=2.2.3  # C parser for faster Redis protocol parsing (optional performance boost)
+
+# Monitoring dependencies (HIGH-01 - Prometheus metrics)
+prometheus-client>=0.19.0  # Prometheus metrics instrumentation
+prometheus-fastapi-instrumentator>=6.1.0  # FastAPI metrics middleware
+
+# Testing dependencies
+pytest>=8.0.0
+pytest-asyncio>=0.23.4
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+# Note: httpx is already listed above in Core dependencies
+
+# Sprint 5 dependencies - Git N2 Traceability + Analytics
+GitPython>=3.1.40  # Git repository integration
+matplotlib>=3.8.0  # Visualization for reports (future)
+plotly>=5.18.0     # Interactive charts for dashboards (future)
+openpyxl>=3.1.2    # Excel export for reports (future)
+reportlab>=4.0.7   # PDF generation for reports (future)
+pandas>=2.1.4      # Data aggregation and analysis

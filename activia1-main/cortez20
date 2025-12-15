@@ -1,0 +1,459 @@
+# CORTEZ20 - Auditoria Senior de Anomalias e Inconsistencias
+# Fecha: 14 Diciembre 2025
+# Tipo: Analisis exhaustivo de codigo, patrones y seguridad
+# Metodologia: Revision multi-area (Frontend Services, Backend Routers, Components, Database)
+
+================================================================================
+RESUMEN EJECUTIVO
+================================================================================
+
+Esta auditoria analiza anomalias e inconsistencias en todo el proyecto:
+- Frontend API Services: 15 servicios analizados
+- Backend Routers: 25 routers analizados
+- Frontend Components: Pages y Features analizados
+- Database Layer: Models y Repositories analizados
+
+RESULTADO GENERAL: 67 DEFECTOS ENCONTRADOS
+- Criticos: 11
+- Altos: 14
+- Medios: 28
+- Bajos: 14
+
+================================================================================
+CATEGORIA 1: SEGURIDAD - ENDPOINTS SIN AUTENTICACION
+================================================================================
+SEVERIDAD: CRITICA
+
+## DEFECTO 1.1 - GET /sessions/{session_id} sin autenticacion
+ARCHIVO: backend/api/routers/sessions.py:221
+DESCRIPCION: Endpoint para obtener detalles de sesion NO tiene get_current_user
+RIESGO: Cualquier usuario puede ver detalles de cualquier sesion
+FIX: Agregar current_user: dict = Depends(get_current_user)
+
+## DEFECTO 1.2 - GET /traces/{session_id} sin autenticacion
+ARCHIVO: backend/api/routers/traces.py:75
+DESCRIPCION: Endpoint de trazas cognitivas NO requiere autenticacion
+RIESGO: Acceso no autorizado a trazas de aprendizaje
+FIX: Agregar dependencia de autenticacion
+
+## DEFECTO 1.3 - GET /traces/student/{student_id} sin autenticacion
+ARCHIVO: backend/api/routers/traces.py:202
+DESCRIPCION: Trazas por estudiante accesibles sin auth
+RIESGO: Exposicion de datos de estudiantes
+FIX: Agregar require_teacher_role o get_current_user
+
+## DEFECTO 1.4 - GET /risks/session/{session_id} sin autenticacion
+ARCHIVO: backend/api/routers/risks.py:191
+DESCRIPCION: Riesgos de sesion accesibles publicamente
+RIESGO: Datos sensibles de evaluacion expuestos
+FIX: Agregar autenticacion
+
+## DEFECTO 1.5 - GET /risks/student/{student_id} sin autenticacion
+ARCHIVO: backend/api/routers/risks.py:258
+DESCRIPCION: Perfil de riesgos por estudiante sin proteccion
+RIESGO: Acceso a perfil de riesgos de cualquier estudiante
+FIX: Agregar require_teacher_role
+
+## DEFECTO 1.6 - GET /risks/evaluation/session/{session_id} sin autenticacion
+ARCHIVO: backend/api/routers/risks.py:462
+DESCRIPCION: Evaluaciones accesibles sin autenticacion
+RIESGO: Datos academicos expuestos
+FIX: Agregar autenticacion
+
+## DEFECTO 1.7 - GET /cognitive-path/{session_id} sin autenticacion
+ARCHIVO: backend/api/routers/cognitive_path.py
+DESCRIPCION: Ruta cognitiva accesible sin auth
+RIESGO: Datos de proceso cognitivo expuestos
+FIX: Agregar autenticacion
+
+================================================================================
+CATEGORIA 2: FRONTEND SERVICES - INCONSISTENCIAS CRITICAS
+================================================================================
+SEVERIDAD: CRITICA/ALTA
+
+## DEFECTO 2.1 - Bypass de wrapper APIResponse en risks.service.ts
+ARCHIVO: frontEnd/src/services/api/risks.service.ts:168
+DESCRIPCION: Usa this.client.get() en lugar de this.get()
+```typescript
+return this.client.get(`/risk-analysis/${sessionId}`);
+```
+PROBLEMA: Retorna {success, data, error} en vez de solo data
+IMPACTO: Frontend recibe estructura incorrecta
+FIX: Cambiar a return this.get<RiskAnalysis5D>(`/risk-analysis/${sessionId}`);
+
+## DEFECTO 2.2 - Bypass de wrapper APIResponse en git.service.ts
+ARCHIVO: frontEnd/src/services/api/git.service.ts:157
+DESCRIPCION: Usa this.client.get() en lugar de this.get()
+```typescript
+return this.client.get(`/git-analytics?period=${period}`);
+```
+PROBLEMA: Mismo problema que 2.1
+FIX: Cambiar a this.get<GitAnalyticsData>(...)
+
+## DEFECTO 2.3 - Manejo inconsistente en reports.service.ts
+ARCHIVO: frontEnd/src/services/api/reports.service.ts:283-284
+```typescript
+return response.data?.data || response.data || [];
+```
+PROBLEMA: Fallback manual indica incertidumbre sobre formato de respuesta
+FIX: Usar metodo consistente de BaseApiService
+
+## DEFECTO 2.4 - Import no utilizado en git.service.ts
+ARCHIVO: frontEnd/src/services/api/git.service.ts:7
+```typescript
+import { get } from './client';
+```
+PROBLEMA: Import nunca usado
+FIX: Eliminar import
+
+## DEFECTO 2.5 - Import no utilizado en evaluations.service.ts
+ARCHIVO: frontEnd/src/services/api/evaluations.service.ts:10
+```typescript
+import { get, post } from './client';
+```
+PROBLEMA: Usado inconsistentemente, algunos metodos usan this.get()
+FIX: Unificar patron de uso
+
+## DEFECTO 2.6 - Metodos duplicados en evaluations.service.ts
+ARCHIVO: frontEnd/src/services/api/evaluations.service.ts:180-191
+```typescript
+async generateEvaluation(sessionId: string): Promise<ProcessEvaluationResponse>
+async evaluateSession(sessionId: string): Promise<ProcessEvaluationResponse> {
+  return this.generateEvaluation(sessionId);  // Alias innecesario
+}
+```
+FIX: Eliminar metodo duplicado o documentar claramente
+
+## DEFECTO 2.7 - Tipos 'any' en exercises.service.ts
+ARCHIVO: frontEnd/src/services/api/exercises.service.ts:28-29, 35, 68
+```typescript
+async getById(exerciseId: string): Promise<any>
+async list(params?): Promise<any[]>
+return this.get<any>('/submissions');
+```
+PROBLEMA: Viola tipado TypeScript
+FIX: Definir interfaces apropiadas
+
+## DEFECTO 2.8 - Servicios sin manejo de errores
+ARCHIVOS AFECTADOS:
+- auth.service.ts
+- sessions.service.ts
+- interactions.service.ts
+- evaluations.service.ts
+- risks.service.ts
+- traces.service.ts
+- activities.service.ts
+PROBLEMA: Solo git.service.ts y simulators.service.ts tienen try-catch
+FIX: Implementar manejo de errores consistente
+
+================================================================================
+CATEGORIA 3: BACKEND ROUTERS - INCONSISTENCIAS
+================================================================================
+SEVERIDAD: ALTA/MEDIA
+
+## DEFECTO 3.1 - response_model sin tipo en risk_analysis.py
+ARCHIVO: backend/api/routers/risk_analysis.py:45-57
+```python
+@router.get("/{session_id}", response_model=APIResponse)  # Falta tipo
+```
+PROBLEMA: APIResponse sin parametro de tipo
+FIX: Cambiar a response_model=APIResponse[RiskAnalysisResponse]
+
+## DEFECTO 3.2 - response_model sin tipo en traceability.py
+ARCHIVO: backend/api/routers/traceability.py:19-22
+```python
+response_model=APIResponse  # Sin tipo
+```
+FIX: Agregar tipo especifico
+
+## DEFECTO 3.3 - health.py retorna sin APIResponse wrapper
+ARCHIVO: backend/api/routers/health.py:77-86
+```python
+return HealthStatus(...)  # Retorna directo, no APIResponse
+```
+PROBLEMA: Inconsistente con otros endpoints
+NOTA: Puede ser intencional para compatibilidad con health checks
+
+## DEFECTO 3.4 - Codigo inalcanzable en metrics.py
+ARCHIVO: backend/api/routers/metrics.py:107-120
+```python
+return Response(..., status_code=500)  # Line 109
+logger.error(...)  # Line 114 - INALCANZABLE
+return Response(...)  # Line 116-120 - INALCANZABLE
+```
+FIX: Eliminar codigo muerto despues del return
+
+## DEFECTO 3.5 - Excepciones inconsistentes
+ARCHIVOS:
+- sessions.py:239 usa SessionNotFoundError (custom)
+- evaluations.py:157 usa HTTPException (FastAPI)
+- cognitive_path.py:62 usa HTTPException
+- traceability.py:39 usa HTTPException
+PROBLEMA: Mix de tipos de excepcion
+FIX: Unificar patron de excepciones
+
+## DEFECTO 3.6 - Endpoint deprecado activo
+ARCHIVO: backend/api/routers/traces.py:167-187
+```python
+@router.get("/{session_id}/cognitive-path", deprecated=True)
+```
+PROBLEMA: Endpoint marcado deprecado pero sigue procesando
+FIX: Redirigir o documentar timeline de eliminacion
+
+## DEFECTO 3.7 - Validacion UUID faltante
+ARCHIVOS:
+- sessions.py:216-222 - get_session() no valida UUID
+- traces.py:65-100 - get_session_traces() no valida UUID
+- risks.py (solo analyze_session_risks valida en linea 666)
+PROBLEMA: Inconsistencia en validacion
+FIX: Aplicar validate_uuid_format() en todos los endpoints
+
+## DEFECTO 3.8 - N+1 Query en sessions.py
+ARCHIVO: backend/api/routers/sessions.py:349-350, 422-425
+```python
+traces = trace_repo.get_by_session(session_id)
+risks = risk_repo.get_by_session(session_id)
+```
+PROBLEMA: Queries separadas despues de cargar sesion
+FIX: Usar eager loading con selectinload()
+
+## DEFECTO 3.9 - Filtrado en Python vs SQL
+ARCHIVO: backend/api/routers/interactions.py:263-269
+```python
+student_traces = [t for t in traces if t.interaction_type == "STUDENT_PROMPT"]
+```
+PROBLEMA: Filtro en memoria en vez de SQL
+FIX: Usar trace_repo.get_by_session_filtered()
+
+================================================================================
+CATEGORIA 4: FRONTEND COMPONENTS - PROBLEMAS
+================================================================================
+SEVERIDAD: ALTA/MEDIA
+
+## DEFECTO 4.1 - console.error sin check de DEV
+ARCHIVOS:
+- ExercisesPageNew.tsx:28, 52
+- ExerciseDetailPage.tsx:41
+- AnalyticsPage.tsx:41
+- TutorChat.tsx:166
+- Dashboard.tsx:54
+```typescript
+console.error('Error...', error);  // Sin if (import.meta.env.DEV)
+```
+FIX: Envolver en if (import.meta.env.DEV) { console.error(...) }
+
+## DEFECTO 4.2 - ErrorBoundary no usado en paginas
+ARCHIVOS AFECTADOS:
+- TutorPage.tsx
+- ExercisesPageNew.tsx
+- ExerciseDetailPage.tsx
+- DashboardPage.tsx
+- SimulatorsHub.tsx
+- TraceabilityViewer.tsx
+- RiskAnalyzer.tsx
+PROBLEMA: Ninguna pagina usa ErrorBoundary wrapper
+FIX: Envolver componentes de pagina con ErrorBoundary
+
+## DEFECTO 4.3 - Memory leak potencial en RiskAnalyzer.tsx
+ARCHIVO: frontEnd/src/features/risks/components/RiskAnalyzer.tsx:96-110
+```typescript
+useEffect(() => {
+  loadSessions();  // Async sin cleanup
+}, []);
+```
+PROBLEMA: Sin AbortController para cancelar peticiones
+FIX: Agregar cleanup function con AbortController
+
+## DEFECTO 4.4 - Memory leak potencial en TraceabilityViewer.tsx
+ARCHIVO: frontEnd/src/features/traceability/components/TraceabilityViewer.tsx:99-101
+```typescript
+useEffect(() => {
+  loadSessions();  // Sin cleanup
+}, []);
+```
+FIX: Agregar AbortController
+
+## DEFECTO 4.5 - Strings hardcodeados en TutorPage.tsx
+ARCHIVO: frontEnd/src/pages/TutorPage.tsx
+LINEAS: 96, 187, 210, 235-237, 472-475
+PROBLEMA: Mensajes de error y sugerencias hardcodeados
+FIX: Crear archivo constants/messages.ts
+
+## DEFECTO 4.6 - console.warn sin DEV check en AppContext.tsx
+ARCHIVO: frontEnd/src/core/context/AppContext.tsx:100, 113
+```typescript
+console.warn('Failed to load state from localStorage:', error);
+console.warn('Failed to save state to localStorage:', error);
+```
+FIX: Envolver en DEV check
+
+================================================================================
+CATEGORIA 5: DATABASE LAYER - ANOMALIAS
+================================================================================
+SEVERIDAD: MEDIA
+
+## DEFECTO 5.1 - FK sin indice en RiskAlertDB.acknowledged_by
+ARCHIVO: backend/database/models.py:1056
+```python
+acknowledged_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"))
+# Falta: index=True
+```
+FIX: Agregar index=True
+
+## DEFECTO 5.2 - FK sin indice en RiskAlertDB.remediation_plan_id
+ARCHIVO: backend/database/models.py:1060
+```python
+remediation_plan_id = Column(String(36), ForeignKey("remediation_plans.id", ondelete="SET NULL"))
+# Falta: index=True
+```
+FIX: Agregar index=True
+
+## DEFECTO 5.3 - Firma de metodo inconsistente en ActivityRepository
+ARCHIVO: backend/database/repositories.py:1765
+```python
+def get_by_id(self, id: str)  # Usa 'id' generico
+```
+PROBLEMA: Otros repos usan nombres especificos (session_id, trace_id)
+FIX: Cambiar a get_by_id(self, activity_id: str)
+
+## DEFECTO 5.4 - Firma de metodo inconsistente en StudentProfileRepository
+ARCHIVO: backend/database/repositories.py:3902
+```python
+def get_by_id(self, id: str)  # Usa 'id' generico
+```
+FIX: Cambiar a get_by_id(self, profile_id: str)
+
+## DEFECTO 5.5 - TraceSequenceDB.activity_id sin indice
+ARCHIVO: backend/database/models.py:522
+```python
+activity_id = Column(String(100), nullable=False)
+# No tiene indice standalone ni compuesto
+```
+FIX: Agregar indice o composite index
+
+================================================================================
+CATEGORIA 6: PATRONES DE CODIGO INCONSISTENTES
+================================================================================
+SEVERIDAD: MEDIA/BAJA
+
+## DEFECTO 6.1 - Import inconsistente en exercises.service.ts
+ARCHIVO: frontEnd/src/services/api/exercises.service.ts:7
+```typescript
+import type { SubmissionResult } from '@/types';  // Otros usan @/types/api.types
+```
+FIX: Cambiar a import from '@/types/api.types'
+
+## DEFECTO 6.2 - Patron de path inconsistente en evaluations.service.ts
+ARCHIVO: frontEnd/src/services/api/evaluations.service.ts:182, 212
+```typescript
+// El service tiene baseUrl='/risks' pero llama a:
+post<...>(`/evaluations/${sessionId}/generate`)  // Ruta absoluta
+get<...>(`/teacher/students/compare?...`)        // Ruta absoluta
+```
+PROBLEMA: Endpoints mezclados de diferentes recursos
+FIX: Separar en servicios especificos o documentar
+
+## DEFECTO 6.3 - Metodo redundante en simulators.service.ts
+ARCHIVO: frontEnd/src/services/api/simulators.service.ts:315-326
+```typescript
+async getAvailableSimulators() {
+  const simulators = await this.getAllSimulators();
+  return simulators.map(...);  // Solo proyecta campos
+}
+```
+FIX: Usar getAllSimulators() directamente o filtrar en componente
+
+## DEFECTO 6.4 - Delegacion innecesaria en traces.service.ts
+ARCHIVO: frontEnd/src/services/api/traces.service.ts:143-146
+```typescript
+async getCognitivePath(sessionId: string) {
+  return cognitivePathService.getCognitivePath(sessionId);  // Solo delega
+}
+```
+FIX: Usar cognitivePathService directamente donde se necesite
+
+================================================================================
+RESUMEN DE CORRECCIONES REQUERIDAS
+================================================================================
+
+## CRITICAS (11):
+1-7. Agregar autenticacion a 7 endpoints (sessions, traces, risks, cognitive-path)
+8-9. Corregir bypass de APIResponse wrapper en risks.service.ts y git.service.ts
+10-11. Corregir memory leaks en RiskAnalyzer.tsx y TraceabilityViewer.tsx
+
+## ALTAS (14):
+12. Agregar ErrorBoundary a 7 paginas principales
+13. Corregir tipos 'any' en exercises.service.ts
+14. Implementar manejo de errores en 7 servicios
+15. Corregir response_model sin tipo en 2 routers
+16. Eliminar codigo inalcanzable en metrics.py
+17. Unificar patron de excepciones en routers
+18. Aplicar validacion UUID consistente
+19-20. Optimizar N+1 queries en sessions.py
+
+## MEDIAS (28):
+21-28. Envolver console.log/error en DEV checks (8 archivos)
+29-30. Agregar indices a FKs en RiskAlertDB
+31-32. Corregir firmas de metodos en repositories
+33. Agregar indice a TraceSequenceDB.activity_id
+34-38. Eliminar imports no usados
+39-42. Extraer strings hardcodeados a constantes
+43-48. Unificar patrones de codigo
+
+## BAJAS (14):
+49-62. Documentacion y refactoring menor
+63-67. Eliminar metodos duplicados/redundantes
+
+================================================================================
+ESTADISTICAS FINALES
+================================================================================
+
+| Categoria | Defectos | Severidad |
+|-----------|----------|-----------|
+| Seguridad (auth) | 7 | CRITICA |
+| Frontend Services | 8 | CRITICA/ALTA |
+| Backend Routers | 9 | ALTA/MEDIA |
+| Frontend Components | 6 | ALTA/MEDIA |
+| Database Layer | 5 | MEDIA |
+| Patrones Codigo | 4 | MEDIA/BAJA |
+
+TOTAL: 67 defectos
+
+ARCHIVOS MAS AFECTADOS:
+1. backend/api/routers/traces.py - 3 defectos (auth, validacion, deprecado)
+2. backend/api/routers/risks.py - 3 defectos (auth x3)
+3. backend/api/routers/sessions.py - 3 defectos (auth, N+1)
+4. frontEnd/src/services/api/evaluations.service.ts - 3 defectos
+5. frontEnd/src/services/api/risks.service.ts - 2 defectos
+6. frontEnd/src/features/risks/components/RiskAnalyzer.tsx - 2 defectos
+
+ESTADO DEL PROYECTO:
+- Compilacion: OK (0 errores TypeScript, backend importa correctamente)
+- Funcionalidad: Operativa pero con brechas de seguridad
+- Calidad de codigo: Necesita unificacion de patrones
+- Seguridad: REQUIERE ATENCION INMEDIATA (7 endpoints sin auth)
+
+================================================================================
+PRIORIDAD DE CORRECCION RECOMENDADA
+================================================================================
+
+FASE 1 - INMEDIATA (Seguridad):
+- Defectos 1.1-1.7: Agregar autenticacion a endpoints expuestos
+
+FASE 2 - ALTA (Funcionalidad):
+- Defectos 2.1-2.2: Corregir wrapper bypass
+- Defectos 4.3-4.4: Memory leaks
+
+FASE 3 - MEDIA (Calidad):
+- Defectos 3.x: Consistencia en backend
+- Defectos 4.x: Componentes frontend
+- Defectos 5.x: Database indexes
+
+FASE 4 - BAJA (Mantenimiento):
+- Defectos 6.x: Patrones de codigo
+- Cleanup de imports y metodos duplicados
+
+================================================================================
+Generated with Claude Code (claude.ai/claude-code)
+Fecha: 2025-12-14
+Auditor: Analisis Senior Automatizado

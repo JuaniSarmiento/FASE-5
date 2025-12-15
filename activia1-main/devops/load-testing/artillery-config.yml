@@ -1,0 +1,205 @@
+# AI-Native MVP - Artillery Load Testing Configuration
+# Author: Mag. Alberto Cortez
+# Date: 2025-11-24
+
+config:
+  # Target environment (change for production)
+  target: "http://localhost:8000"  # Use Ingress IP or domain in staging/prod
+
+  # Test phases (ramp-up strategy)
+  phases:
+    # Phase 1: Warm-up (2 minutes)
+    - duration: 120
+      arrivalRate: 5
+      name: "Warm-up phase"
+
+    # Phase 2: Ramp-up (3 minutes)
+    - duration: 180
+      arrivalRate: 5
+      rampTo: 50
+      name: "Ramp-up to 50 RPS"
+
+    # Phase 3: Sustained load (5 minutes)
+    - duration: 300
+      arrivalRate: 50
+      name: "Sustained load (50 RPS)"
+
+    # Phase 4: Peak load (3 minutes)
+    - duration: 180
+      arrivalRate: 100
+      name: "Peak load (100 RPS)"
+
+    # Phase 5: Spike test (1 minute)
+    - duration: 60
+      arrivalRate: 200
+      name: "Spike test (200 RPS)"
+
+  # Payload configuration
+  payload:
+    path: "./test-data.csv"
+    fields:
+      - "student_id"
+      - "activity_id"
+      - "prompt"
+    skipHeader: true
+    order: "sequence"
+
+  # HTTP defaults
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+
+  # Plugins
+  plugins:
+    expect: {}
+    metrics-by-endpoint: {}
+
+  # Engine configuration
+  http:
+    timeout: 30
+    pool: 50  # Connection pool size
+
+  # Reporting
+  ensure:
+    maxErrorRate: 5  # Max 5% error rate
+    p95: 2000        # 95th percentile < 2s
+    p99: 5000        # 99th percentile < 5s
+
+# Test scenarios
+scenarios:
+  # Scenario 1: Health check (lightweight)
+  - name: "Health Check"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/v1/health"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: status
+
+      - get:
+          url: "/api/v1/health/ping"
+          expect:
+            - statusCode: 200
+
+  # Scenario 2: Create session (common operation)
+  - name: "Create Session"
+    weight: 20
+    flow:
+      - post:
+          url: "/api/v1/sessions"
+          json:
+            student_id: "load_test_{{ $randomString() }}"
+            activity_id: "prog2_tp1_colas"
+            mode: "TUTOR"
+          capture:
+            - json: "$.data.id"
+              as: "session_id"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: data.id
+
+  # Scenario 3: Get session (read operation)
+  - name: "Get Session"
+    weight: 15
+    flow:
+      # First create a session
+      - post:
+          url: "/api/v1/sessions"
+          json:
+            student_id: "load_test_{{ $randomString() }}"
+            activity_id: "prog2_tp1_colas"
+            mode: "TUTOR"
+          capture:
+            - json: "$.data.id"
+              as: "session_id"
+
+      # Then retrieve it
+      - get:
+          url: "/api/v1/sessions/{{ session_id }}"
+          expect:
+            - statusCode: 200
+            - contentType: json
+
+  # Scenario 4: Process interaction (heavy operation)
+  - name: "Process Interaction"
+    weight: 40
+    flow:
+      # Create session
+      - post:
+          url: "/api/v1/sessions"
+          json:
+            student_id: "load_test_{{ $randomString() }}"
+            activity_id: "prog2_tp1_colas"
+            mode: "TUTOR"
+          capture:
+            - json: "$.data.id"
+              as: "session_id"
+
+      # Process interaction (main CPU-intensive operation)
+      - post:
+          url: "/api/v1/interactions"
+          json:
+            session_id: "{{ session_id }}"
+            prompt: "{{ prompt }}"
+            cognitive_intent: "UNDERSTANDING"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: data.response
+
+      # Think time (simulate user reading response)
+      - think: 3
+
+  # Scenario 5: List sessions (pagination test)
+  - name: "List Sessions"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/v1/sessions?page=1&page_size=20"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: pagination
+
+  # Scenario 6: Get cognitive path (complex query)
+  - name: "Get Cognitive Path"
+    weight: 5
+    flow:
+      # Create session with interactions
+      - post:
+          url: "/api/v1/sessions"
+          json:
+            student_id: "load_test_{{ $randomString() }}"
+            activity_id: "prog2_tp1_colas"
+            mode: "TUTOR"
+          capture:
+            - json: "$.data.id"
+              as: "session_id"
+
+      # Process 2 interactions
+      - post:
+          url: "/api/v1/interactions"
+          json:
+            session_id: "{{ session_id }}"
+            prompt: "¿Qué es una cola circular?"
+            cognitive_intent: "UNDERSTANDING"
+
+      - think: 1
+
+      - post:
+          url: "/api/v1/interactions"
+          json:
+            session_id: "{{ session_id }}"
+            prompt: "¿Cómo implemento el método enqueue?"
+            cognitive_intent: "PLANNING"
+
+      # Get cognitive path
+      - get:
+          url: "/api/v1/traces/{{ session_id }}/cognitive-path"
+          expect:
+            - statusCode: 200
+            - contentType: json

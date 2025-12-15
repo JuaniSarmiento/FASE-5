@@ -1,0 +1,173 @@
+# ============================================================================
+# Prometheus Configuration for AI-Native MVP
+# ============================================================================
+# Configuración para scraping de métricas del sistema
+#
+# REMEDIACIÓN: HIGH-01 - Implementar Prometheus metrics
+# Audit Score: 8.2/10 → 9.0/10 (esperado)
+#
+# Uso:
+#   docker run -d -p 9090:9090 \
+#     -v $(pwd)/prometheus.yml:/etc/prometheus/prometheus.yml \
+#     prom/prometheus
+# ============================================================================
+
+global:
+  # Intervalo de scraping global (default: 15s)
+  scrape_interval: 15s
+
+  # Timeout para scrapes (default: 10s)
+  scrape_timeout: 10s
+
+  # Intervalo para evaluación de reglas (default: 15s)
+  evaluation_interval: 15s
+
+  # Labels externos que se agregan a todas las métricas/alertas
+  external_labels:
+    environment: 'development'
+    cluster: 'ai-native-mvp'
+    project: 'ai-native-backend'
+
+# Configuración de Alertmanager (opcional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#             - 'alertmanager:9093'
+
+# Cargar reglas de alertas desde archivos
+# rule_files:
+#   - '/etc/prometheus/alerts/*.yml'
+
+# Configuración de scraping
+scrape_configs:
+  # ========================================================================
+  # Prometheus Self-Monitoring
+  # ========================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # ========================================================================
+  # AI-Native MVP API Backend
+  # ========================================================================
+  - job_name: 'ai-native-api'
+    # Scrape cada 15 segundos (default)
+    scrape_interval: 15s
+
+    # Timeout de 5 segundos para este job específico
+    scrape_timeout: 5s
+
+    # Path donde están las métricas (default: /metrics)
+    metrics_path: '/metrics'
+
+    # Scheme (http o https)
+    scheme: 'http'
+
+    # Targets estáticos (para desarrollo local)
+    static_configs:
+      - targets:
+          - 'api:8000'            # Docker Compose service name
+          # - 'localhost:8000'    # Local development (uncomment if running outside Docker)
+        labels:
+          service: 'ai-native-api'
+          component: 'backend'
+          version: '0.1.0'
+
+    # Relabeling configs (opcionales)
+    # relabel_configs:
+    #   - source_labels: [__address__]
+    #     target_label: instance
+
+    # Métricas a retener (opcional - filtro si hay muchas métricas)
+    # metric_relabel_configs:
+    #   - source_labels: [__name__]
+    #     regex: 'ai_native_.*'
+    #     action: keep
+
+  # ========================================================================
+  # PostgreSQL Database (opcional - requiere postgres_exporter)
+  # ========================================================================
+  # - job_name: 'postgresql'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+  #       labels:
+  #         service: 'postgresql'
+  #         database: 'ai_native'
+
+  # ========================================================================
+  # Redis Cache (opcional - requiere redis_exporter)
+  # ========================================================================
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+  #       labels:
+  #         service: 'redis'
+  #         cache: 'llm-cache'
+
+  # ========================================================================
+  # Node Exporter (opcional - métricas del sistema operativo)
+  # ========================================================================
+  # - job_name: 'node'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+  #       labels:
+  #         service: 'node-exporter'
+
+# ============================================================================
+# Storage Configuration (opcional)
+# ============================================================================
+# storage:
+#   tsdb:
+#     retention:
+#       time: 15d          # Retener datos por 15 días
+#       size: 10GB         # Máximo 10GB de almacenamiento
+#     out_of_order_time_window: 5m  # Permitir escrituras fuera de orden
+
+# ============================================================================
+# Remote Write (opcional - para Grafana Cloud, Thanos, etc.)
+# ============================================================================
+# remote_write:
+#   - url: https://prometheus-us-central1.grafana.net/api/prom/push
+#     basic_auth:
+#       username: <instance_id>
+#       password: <api_key>
+
+# ============================================================================
+# Notas de Uso
+# ============================================================================
+#
+# SCRAPING LOCAL (desarrollo):
+#   1. Iniciar API: python scripts/run_api.py
+#   2. Iniciar Prometheus: prometheus --config.file=prometheus.yml
+#   3. Acceder a Prometheus UI: http://localhost:9090
+#   4. Query example: ai_native_interactions_total
+#
+# SCRAPING DOCKER COMPOSE:
+#   1. docker-compose --profile monitoring up -d
+#   2. Prometheus UI: http://localhost:9090
+#   3. Grafana UI: http://localhost:3001 (admin/admin)
+#
+# QUERIES ÚTILES:
+#   - Total de interacciones: ai_native_interactions_total
+#   - Rate de interacciones (último minuto): rate(ai_native_interactions_total[1m])
+#   - Latencia LLM promedio: avg(ai_native_llm_call_duration_seconds)
+#   - Latencia LLM p99: histogram_quantile(0.99, ai_native_llm_call_duration_seconds_bucket)
+#   - Cache hit rate: ai_native_cache_hit_rate_percent
+#   - Database pool usage: ai_native_database_pool_checked_out / ai_native_database_pool_size
+#   - Riesgos críticos: ai_native_risks_detected_total{risk_level="CRITICAL"}
+#   - Bloqueos de gobernanza: rate(ai_native_governance_blocks_total[5m])
+#
+# TROUBLESHOOTING:
+#   - "context deadline exceeded": Aumentar scrape_timeout
+#   - "no targets found": Verificar que api:8000 esté accesible
+#   - "metrics endpoint not found": Verificar que /metrics esté disponible
+#
+# PROMETHEUS UI USEFUL PAGES:
+#   - Status > Targets: Ver estado de todos los targets
+#   - Status > Configuration: Ver configuración cargada
+#   - Graph: Ejecutar queries y ver resultados
+#
+# ============================================================================

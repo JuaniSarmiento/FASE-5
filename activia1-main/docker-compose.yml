@@ -1,0 +1,516 @@
+# ============================================================================
+# AI-Native MVP - Docker Compose Stack Completo
+# ============================================================================
+# Define el stack completo de la aplicación:
+# - API Backend (FastAPI con uvicorn)
+# - PostgreSQL Database
+# - Redis Cache (para rate limiting y LLM cache)
+#
+# Uso:
+#   docker-compose up -d          # Iniciar stack
+#   docker-compose down           # Detener stack
+#   docker-compose logs -f api    # Ver logs del API
+#   docker-compose ps             # Ver estado de servicios
+#   docker-compose exec api bash  # Shell en container API
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # API Backend - FastAPI Application
+  # ==========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai-native-mvp:latest
+    container_name: ai-native-api
+    ports:
+      - "8000:8000"
+    environment:
+      # Database configuration (credentials from environment)
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ai_native}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-ai_native}
+      - DB_POOL_SIZE=80
+      - DB_MAX_OVERFLOW=80
+      - DB_POOL_TIMEOUT=5
+      - DB_POOL_RECYCLE=3600
+
+      # Redis configuration (with authentication)
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
+      - LLM_CACHE_ENABLED=true
+      - LLM_CACHE_TTL=3600
+      - LLM_CACHE_MAX_ENTRIES=1000
+
+      # LLM Provider - Ollama (contenedor separado)
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-phi3}
+      - OLLAMA_TEMPERATURE=${OLLAMA_TEMPERATURE:-0.7}
+      - OLLAMA_TIMEOUT=${OLLAMA_TIMEOUT:-120}
+
+      # Security (REQUIRED: Set these in .env file, no defaults for security)
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required - generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'}
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required - generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'}
+
+      # Application
+      - ENVIRONMENT=development
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+
+      # CORS (includes frontend dev ports and Grafana)
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+    volumes:
+      # Montar código en development para hot-reload (comentar en producción)
+      - ./backend:/app/backend:ro
+
+    networks:
+      - ai-native-network
+
+    restart: unless-stopped
+
+    # FIX 5.1: Add resource limits for API container
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # FIX 4.10 Cortez3: Add log rotation for API
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+        labels: "service=ai-native-api"
+
+  # ==========================================================================
+  # PostgreSQL Database
+  # ==========================================================================
+  postgres:
+    image: postgres:15.7-alpine
+    container_name: ai-native-postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-ai_native}
+      - POSTGRES_USER=${POSTGRES_USER:-ai_native}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    ports:
+      - "5432:5432"
+    volumes:
+      # Persistencia de datos
+      - postgres_data:/var/lib/postgresql/data
+
+      # Scripts de inicialización (opcional)
+      # - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+    networks:
+      - ai-native-network
+
+    restart: unless-stopped
+
+    # FIX 4.5: Use environment variables instead of hardcoded values
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_native} -d ${POSTGRES_DB:-ai_native}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    # Configuración de PostgreSQL para performance
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "work_mem=2MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+
+    # FIX 5.1: Add resource limits for PostgreSQL
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+    # FIX 4.10 Cortez3: Add log rotation for PostgreSQL
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+        labels: "service=ai-native-postgres"
+
+  # ==========================================================================
+  # Redis Cache
+  # ==========================================================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: ai-native-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      # Persistencia de datos (AOF - Append Only File)
+      - redis_data:/data
+    networks:
+      - ai-native-network
+
+    restart: unless-stopped
+
+    # Configuración de Redis con autenticación
+    command:
+      - "redis-server"
+      - "--requirepass"
+      - "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
+      - "--appendonly"
+      - "yes"
+      - "--appendfsync"
+      - "everysec"
+      - "--maxmemory"
+      - "256mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+
+    # FIX 4.8 Cortez3: Add start_period to Redis healthcheck
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+    # FIX 4.10 Cortez3: Add log rotation for Redis
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        labels: "service=ai-native-redis"
+
+    # FIX 5.1: Add resource limits for Redis
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+
+  # ==========================================================================
+  # Ollama - Local LLM Server (usa modelos del host)
+  # ==========================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-native-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      # Keep model loaded in memory permanently for instant responses
+      - OLLAMA_KEEP_ALIVE=-1
+    volumes:
+      # Volumen persistente para modelos de Ollama
+      - ollama_data:/root/.ollama
+    networks:
+      - ai-native-network
+    restart: unless-stopped
+
+    # FIX 5.3: Improved health check for Ollama
+    # FIX 4.4: Increase start_period to 300s (Phi-3 takes 2-5 min to download ~2GB)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 300s
+
+    # FIX 5.1: Add resource limits for Ollama (needs more for LLM inference)
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+
+    # FIX 4.10 Cortez3: Add log rotation for Ollama
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "5"
+        labels: "service=ai-native-ollama"
+
+  # ==========================================================================
+  # pgAdmin (opcional) - Administración de PostgreSQL
+  # FIX 1.2: Use environment variables for credentials instead of hardcoded defaults
+  # ==========================================================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ai-native-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@ai-native.local}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:?PGADMIN_PASSWORD is required for debug profile}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - ai-native-network
+    restart: unless-stopped
+    # FIX 5.1: Add resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+    profiles:
+      - debug  # Solo se inicia con: docker-compose --profile debug up
+
+  # ==========================================================================
+  # Redis Commander (opcional) - Administración de Redis
+  # FIX 1.3: Add Redis authentication to commander
+  # ==========================================================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ai-native-redis-commander
+    environment:
+      # FIX 1.3: Include Redis password in connection string
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      # FIX 1.3: Add HTTP basic auth for Redis Commander UI
+      - HTTP_USER=${REDIS_COMMANDER_USER:-admin}
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:?REDIS_COMMANDER_PASSWORD is required for debug profile}
+    ports:
+      - "8081:8081"
+    networks:
+      - ai-native-network
+    restart: unless-stopped
+    # FIX 5.1: Add resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 128M
+    profiles:
+      - debug  # Solo se inicia con: docker-compose --profile debug up
+
+  # ==========================================================================
+  # Prometheus (opcional) - Metrics Storage & Querying
+  # ==========================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: ai-native-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-alerts.yml:/etc/prometheus/alerts/alerts.yml:ro  # FIX 4.5 Cortez3
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.enable-lifecycle'
+    networks:
+      - ai-native-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - api
+    profiles:
+      - monitoring  # Solo se inicia con: docker-compose --profile monitoring up
+
+  # ==========================================================================
+  # Grafana (opcional) - Visualization & Dashboards
+  # FIX 1.2: Use environment variables for credentials
+  # ==========================================================================
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: ai-native-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      # FIX 1.2: Use env vars for admin credentials
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD is required for monitoring profile}
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - ai-native-network
+    restart: unless-stopped
+    # FIX 5.1: Add resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring  # Solo se inicia con: docker-compose --profile monitoring up
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  ai-native-network:
+    driver: bridge
+    name: ai-native-network
+
+# ============================================================================
+# Volumes (Persistencia de Datos)
+# ============================================================================
+volumes:
+  postgres_data:
+    name: ai-native-postgres-data
+    driver: local
+
+  redis_data:
+    name: ai-native-redis-data
+    driver: local
+
+  pgadmin_data:
+    name: ai-native-pgadmin-data
+    driver: local
+
+  prometheus_data:
+    name: ai-native-prometheus-data
+    driver: local
+
+  grafana_data:
+    name: ai-native-grafana-data
+    driver: local
+
+  ollama_data:
+    name: ai-native-ollama-data
+    driver: local
+
+# ============================================================================
+# Notas de Uso
+# ============================================================================
+#
+# INICIAR STACK COMPLETO:
+#   docker-compose up -d
+#
+# INICIAR CON HERRAMIENTAS DE DEBUG (pgAdmin + Redis Commander):
+#   docker-compose --profile debug up -d
+#
+# VER LOGS:
+#   docker-compose logs -f              # Todos los servicios
+#   docker-compose logs -f api          # Solo API
+#   docker-compose logs -f postgres     # Solo PostgreSQL
+#   docker-compose logs -f redis        # Solo Redis
+#
+# EJECUTAR COMANDOS EN CONTAINERS:
+#   docker-compose exec api bash                      # Shell en API
+#   docker-compose exec postgres psql -U ai_native    # PostgreSQL shell
+#   docker-compose exec redis redis-cli               # Redis shell
+#
+# RESTART SERVICIOS:
+#   docker-compose restart api          # Solo API
+#   docker-compose restart              # Todos los servicios
+#
+# DETENER Y ELIMINAR:
+#   docker-compose down                 # Detener servicios (mantiene volúmenes)
+#   docker-compose down -v              # Detener y ELIMINAR volúmenes (¡DANGER!)
+#
+# VER ESTADO:
+#   docker-compose ps                   # Estado de servicios
+#   docker-compose top                  # Procesos en ejecución
+#
+# REBUILD IMAGEN:
+#   docker-compose build --no-cache api # Rebuild desde cero
+#   docker-compose up -d --build        # Rebuild y reiniciar
+#
+# ACCEDER A INTERFACES WEB:
+#   API Swagger: http://localhost:8000/docs
+#   pgAdmin: http://localhost:5050 (admin@ai-native.local / admin)
+#   Redis Commander: http://localhost:8081
+#
+# VARIABLES DE ENTORNO:
+#   Las variables marcadas con ${VAR:-default} se leen desde .env del host
+#   Crear archivo .env en el directorio raíz con:
+#     LLM_PROVIDER=openai
+#     OPENAI_API_KEY=sk-proj-...
+#     JWT_SECRET_KEY=<generated_secret>
+#
+# TROUBLESHOOTING:
+#   - Si API no inicia: docker-compose logs api
+#   - Si PostgreSQL no conecta: docker-compose exec postgres pg_isready
+#   - Si Redis no conecta: docker-compose exec redis redis-cli ping
+#   - Verificar health checks: docker-compose ps
+#
+# PRODUCCIÓN:
+#   1. Cambiar ENVIRONMENT=production
+#   2. Generar JWT_SECRET_KEY seguro
+#   3. Usar secretos externos (AWS Secrets Manager, Vault)
+#   4. Comentar volume mount de código (./src:/app/src)
+#   5. Configurar backup automático de postgres_data
+#   6. Usar nginx como reverse proxy (agregar servicio nginx)
+#
+# ============================================================================

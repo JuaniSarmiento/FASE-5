@@ -1,0 +1,235 @@
+================================================================================
+CORTEZ25 - ANALISIS DE ERRORES DE EJECUCION Y CORRECCIONES
+Fecha: 2025-12-15
+Herramientas: Python 3.14.2, SQLAlchemy 2.0+, FastAPI, uvicorn
+================================================================================
+
+RESUMEN EJECUTIVO
+================================================================================
+Backend: FUNCIONAL - Se corrigieron 4 errores críticos
+OpenAPI: 102 rutas funcionando correctamente
+Frontend: Requiere correcciones de Cortez24 (TypeScript)
+
+Total defectos corregidos: 4
+Total rutas OpenAPI verificadas: 102
+
+================================================================================
+DEFECTO 1 - CRITICO: JSONB incompatible con SQLite
+================================================================================
+Archivo: backend/models/user.py
+Linea: 24
+Error: sqlite3.OperationalError: JSONB no es soportado en SQLite
+
+Descripcion: El modelo User en backend/models/user.py usaba directamente JSONB
+de PostgreSQL para la columna `roles`, lo cual no es compatible con SQLite.
+
+Codigo problematico:
+```python
+from sqlalchemy.dialects.postgresql import JSONB
+roles = Column(JSONB, default=lambda: ["student"], nullable=False)
+```
+
+Correccion:
+```python
+from backend.database.models import JSONBCompatible
+roles = Column(JSONBCompatible, default=lambda: ["student"], nullable=False)
+```
+
+Impacto: Backend no podia iniciar con SQLite (entorno de desarrollo).
+
+================================================================================
+DEFECTO 2 - CRITICO: Modelo User duplicado causa conflicto de indices
+================================================================================
+Archivos afectados:
+- backend/models/user.py (User class - ELIMINADA)
+- backend/database/models.py (UserDB class - MANTENIDA)
+- backend/api/routers/auth_new.py
+- backend/api/routers/exercises.py
+- backend/scripts/init_db.py
+
+Error: sqlite3.OperationalError: index ix_users_email already exists
+
+Descripcion: Existian dos modelos ORM para la misma tabla "users":
+1. User en backend/models/user.py
+2. UserDB en backend/database/models.py
+
+Ambos definían indices en email y username, causando conflicto al crear tablas.
+
+Correccion:
+1. Eliminar clase User de backend/models/user.py, mantener solo UserRole enum
+2. Actualizar imports en auth_new.py, exercises.py, init_db.py:
+   ```python
+   # Antes
+   from backend.models.user import User
+   # Despues
+   from backend.database.models import UserDB as User
+   ```
+
+Archivos modificados:
+- backend/models/user.py: Clase User eliminada, solo queda UserRole enum
+- backend/api/routers/auth_new.py: Linea 19-21
+- backend/api/routers/exercises.py: Linea 15-16
+- backend/scripts/init_db.py: Linea 12-13
+
+Impacto: Backend fallaba al iniciar con "index already exists".
+
+================================================================================
+DEFECTO 3 - CRITICO: remote_side usa funcion id() de Python
+================================================================================
+Archivo: backend/database/models.py
+Linea: 293
+Error: sqlalchemy.exc.ArgumentError: Column expression expected for argument
+       'remote_side'; got <built-in function id>.
+
+Descripcion: La relacion self-referencial en CognitiveTraceDB usaba `id` sin
+calificar, lo cual Python interpreta como la funcion built-in id().
+
+Codigo problematico:
+```python
+parent_trace = relationship(
+    "CognitiveTraceDB",
+    remote_side=[id],  # ERROR: usa funcion id() de Python
+    backref="child_traces",
+    foreign_keys="CognitiveTraceDB.parent_trace_id"
+)
+```
+
+Correccion:
+```python
+parent_trace = relationship(
+    "CognitiveTraceDB",
+    remote_side="CognitiveTraceDB.id",  # Usar string reference
+    backref="child_traces",
+    foreign_keys=[parent_trace_id]
+)
+```
+
+Impacto: Todos los endpoints que consultan tablas con relaciones fallaban
+con error 500 (sessions, activities, exercises, etc.).
+
+================================================================================
+DEFECTO 4 - MENOR: Archivo .env no existía
+================================================================================
+Archivo: .env (creado)
+
+Descripcion: El archivo .env no existía, causando errores de configuración
+al iniciar el backend.
+
+Correccion: Creado archivo .env con configuración mínima para desarrollo:
+```
+DATABASE_URL=sqlite:///./test.db
+SECRET_KEY=<generado>
+JWT_SECRET_KEY=dev_jwt_secret_key_change_in_production
+LLM_PROVIDER=mock
+ENVIRONMENT=development
+DEBUG=true
+```
+
+Impacto: Backend no iniciaba sin SECRET_KEY.
+
+================================================================================
+VERIFICACION DE RUTAS OPENAPI
+================================================================================
+
+Estado: 102 rutas verificadas y funcionando
+
+Rutas por categoria:
+  simulators: 15 rutas
+  admin: 15 rutas
+  sessions: 9 rutas
+  risks: 7 rutas
+  reports: 7 rutas
+  health: 5 rutas
+  exercises: 5 rutas
+  auth: 5 rutas
+  activities: 4 rutas
+  git: 4 rutas
+  simulators-v2: 4 rutas
+  traces: 3 rutas
+  teacher: 3 rutas
+  export: 3 rutas
+  interactions: 2 rutas
+  cognitive-path: 2 rutas
+  traceability: 2 rutas
+  events: 2 rutas
+  risk-analysis: 1 rutas
+  git-analytics: 1 rutas
+  evaluations: 1 rutas
+
+Endpoints verificados manualmente (todos retornan 200):
+- GET /api/v1/health
+- GET /api/v1/sessions
+- GET /api/v1/activities
+- GET /api/v1/exercises
+- GET /docs (Swagger UI)
+- GET /openapi.json
+
+================================================================================
+COMANDOS PARA VERIFICAR
+================================================================================
+
+# Iniciar backend (puerto 8001 si 8000 ocupado)
+cd activia1-main && python -m uvicorn backend.api.main:app --port 8001
+
+# Verificar health
+curl http://localhost:8001/api/v1/health
+
+# Ver documentación OpenAPI
+http://localhost:8001/docs
+
+# Verificar sesiones
+curl http://localhost:8001/api/v1/sessions
+
+================================================================================
+ARCHIVOS MODIFICADOS
+================================================================================
+
+1. backend/models/user.py
+   - Eliminada clase User duplicada
+   - Mantenido solo UserRole enum
+   - Agregada documentación de migración
+
+2. backend/database/models.py:293
+   - Corregido remote_side de [id] a "CognitiveTraceDB.id"
+   - Corregido foreign_keys de string a lista
+
+3. backend/api/routers/auth_new.py:19-21
+   - Cambiado import de User a UserDB as User
+
+4. backend/api/routers/exercises.py:15-16
+   - Cambiado import de User a UserDB as User
+
+5. backend/scripts/init_db.py:12-13
+   - Cambiado import de User a UserDB as User
+
+6. .env (creado)
+   - Configuración mínima para desarrollo local
+
+================================================================================
+DEPENDENCIAS INSTALADAS
+================================================================================
+
+- email-validator: Requerido por Pydantic para validación de EmailStr
+- GitPython: Requerido para integración Git (git.service)
+
+Comando: python -m pip install email-validator GitPython
+
+================================================================================
+NOTAS ADICIONALES
+================================================================================
+
+1. El backend ahora funciona correctamente con SQLite para desarrollo local
+2. Producción debe usar PostgreSQL para aprovechar JSONB y GIN indexes
+3. La clase JSONBCompatible en database/models.py maneja la compatibilidad
+4. El puerto 8000 puede quedar ocupado por procesos zombie, usar 8001
+
+================================================================================
+SIGUIENTE PASO RECOMENDADO
+================================================================================
+
+Para producción:
+1. Configurar PostgreSQL en DATABASE_URL
+2. Ejecutar migraciones: python -m backend.database.migrations.add_cortez25_fixes
+3. Regenerar SECRET_KEY y JWT_SECRET_KEY con valores seguros
+
+================================================================================

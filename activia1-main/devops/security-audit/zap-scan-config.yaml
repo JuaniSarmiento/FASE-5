@@ -1,0 +1,223 @@
+# OWASP ZAP Automation Framework Configuration
+# AI-Native MVP - Security Audit
+# Author: Mag. Alberto Cortez
+# Date: 2025-11-24
+
+env:
+  contexts:
+    - name: "ai-native-staging"
+      urls:
+        - "http://localhost:8000"  # Change to staging URL
+      includePaths:
+        - "http://localhost:8000/api/v1/.*"
+      excludePaths:
+        - "http://localhost:8000/api/v1/health/ping"  # Exclude health checks
+      authentication:
+        method: "manual"
+        # TODO: Add JWT authentication when P1.1 is fully deployed
+      sessionManagement:
+        method: "cookie"
+      technology:
+        include:
+          - "Python"
+          - "PostgreSQL"
+          - "Redis"
+          - "Docker"
+
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+
+  vars:
+    target_url: "http://localhost:8000"
+    api_base: "/api/v1"
+
+jobs:
+  # Job 1: Spider (Discovery)
+  - type: spider
+    parameters:
+      context: "ai-native-staging"
+      url: "${target_url}${api_base}"
+      maxDuration: 5  # 5 minutes
+      maxDepth: 5
+      maxChildren: 10
+      acceptCookies: true
+      handleODataParametersVisited: false
+    name: "Spider API endpoints"
+
+  # Job 2: OpenAPI Import (if available)
+  - type: openapi
+    parameters:
+      apiFile: "${target_url}/openapi.json"  # FastAPI auto-generates this
+      targetUrl: "${target_url}"
+      context: "ai-native-staging"
+    name: "Import OpenAPI spec"
+
+  # Job 3: Passive Scan (Baseline)
+  - type: passiveScan-config
+    parameters:
+      maxAlertsPerRule: 10
+      scanOnlyInScope: true
+      maxBodySizeInBytesToScan: 10000
+    name: "Configure passive scanning"
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 10  # 10 minutes
+    name: "Wait for passive scan"
+
+  # Job 4: Active Scan (OWASP Top 10)
+  - type: activeScan
+    parameters:
+      context: "ai-native-staging"
+      policy: "API-scan"  # Optimized for APIs
+      maxRuleDurationInMins: 5
+      maxScanDurationInMins: 30
+      addQueryParam: false
+      handleAntiCSRFTokens: true
+      injectPluginIdInHeader: false
+      scanHeadersAllRequests: true
+    policyDefinition:
+      defaultStrength: "MEDIUM"
+      defaultThreshold: "MEDIUM"
+      rules:
+        # SQL Injection
+        - id: 40018
+          name: "SQL Injection"
+          threshold: "LOW"
+          strength: "HIGH"
+        # XSS
+        - id: 40012
+          name: "Cross Site Scripting (Reflected)"
+          threshold: "LOW"
+          strength: "HIGH"
+        - id: 40014
+          name: "Cross Site Scripting (Persistent)"
+          threshold: "LOW"
+          strength: "HIGH"
+        # Path Traversal
+        - id: 6
+          name: "Path Traversal"
+          threshold: "MEDIUM"
+          strength: "HIGH"
+        # Remote File Inclusion
+        - id: 7
+          name: "Remote File Inclusion"
+          threshold: "MEDIUM"
+          strength: "MEDIUM"
+        # Server Side Include
+        - id: 40009
+          name: "Server Side Include"
+          threshold: "MEDIUM"
+          strength: "MEDIUM"
+        # CRLF Injection
+        - id: 40003
+          name: "CRLF Injection"
+          threshold: "MEDIUM"
+          strength: "MEDIUM"
+        # Parameter Tampering
+        - id: 40008
+          name: "Parameter Tampering"
+          threshold: "MEDIUM"
+          strength: "MEDIUM"
+        # Remote OS Command Injection
+        - id: 90020
+          name: "Remote OS Command Injection"
+          threshold: "LOW"
+          strength: "HIGH"
+        # External Redirect
+        - id: 20019
+          name: "External Redirect"
+          threshold: "MEDIUM"
+          strength: "MEDIUM"
+        # LDAP Injection
+        - id: 40015
+          name: "LDAP Injection"
+          threshold: "MEDIUM"
+          strength: "MEDIUM"
+        # XML External Entity Attack
+        - id: 90023
+          name: "XML External Entity Attack"
+          threshold: "MEDIUM"
+          strength: "MEDIUM"
+        # Server Side Request Forgery
+        - id: 40046
+          name: "Server Side Request Forgery"
+          threshold: "MEDIUM"
+          strength: "MEDIUM"
+    name: "Active scan for vulnerabilities"
+
+  # Job 5: Ajax Spider (for JavaScript-heavy pages)
+  - type: spiderAjax
+    parameters:
+      context: "ai-native-staging"
+      url: "${target_url}"
+      maxDuration: 3  # 3 minutes
+      maxCrawlDepth: 5
+      numberOfBrowsers: 1
+      browserId: "chrome-headless"
+    name: "Ajax spider for dynamic content"
+
+  # Job 6: Report Generation
+  - type: report
+    parameters:
+      template: "traditional-html-plus"
+      reportDir: "./reports"
+      reportFile: "zap-security-report"
+      reportTitle: "AI-Native MVP Security Audit"
+      reportDescription: "OWASP ZAP automated security scan"
+      displayReport: false
+    risks:
+      - high
+      - medium
+      - low
+      - informational
+    confidences:
+      - high
+      - medium
+      - low
+      - falsepositive
+    sections:
+      - instancecount
+      - alertdetails
+      - alertcount
+      - passingrules
+      - chart
+    name: "Generate HTML report"
+
+  - type: report
+    parameters:
+      template: "traditional-json"
+      reportDir: "./reports"
+      reportFile: "zap-security-report"
+    name: "Generate JSON report"
+
+  - type: report
+    parameters:
+      template: "traditional-xml"
+      reportDir: "./reports"
+      reportFile: "zap-security-report"
+    name: "Generate XML report"
+
+  # Job 7: Exit with failure if high-risk alerts found
+  - type: alertFilter
+    parameters:
+      context: "ai-native-staging"
+      newLevel: "False Positive"
+      # Add known false positives here
+    alertFilters:
+      # Example: Mark specific alerts as false positives
+      # - ruleId: 10021
+      #   url: "http://localhost:8000/api/v1/health"
+      #   parameter: ""
+      #   attack: ""
+      #   evidence: ""
+      #   newLevel: "False Positive"
+    name: "Filter false positives"
+
+  - type: outputSummary
+    parameters:
+      format: "LONG"
+      summaryFile: "./reports/scan-summary.txt"
+    name: "Output summary"

@@ -1,0 +1,15 @@
+# Grafana Dashboard Provisioning Configuration
+# Automatically loads dashboards from JSON files
+
+apiVersion: 1
+
+providers:
+  - name: 'AI-Native MVP Dashboards'
+    orgId: 1
+    folder: 'AI-Native MVP'
+    folderUid: 'ai-native-mvp'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

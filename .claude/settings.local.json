@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c:*)",
+      "Bash(pip install:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(timeout 20 python:*)",
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run lint)",
+      "Bash(python -m backend:*)",
+      "Bash(curl:*)",
+      "Bash(python -m backend.scripts.init_db:*)"
+    ]
+  }
+}

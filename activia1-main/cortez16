@@ -1,0 +1,611 @@
+# CORTEZ16 - Auditoria de Ejecucion Backend/Frontend
+# Fecha: 13 Diciembre 2025
+# Tipo: Errores de compilacion y ejecucion
+# Total de defectos: 34
+
+================================================================================
+RESUMEN EJECUTIVO
+================================================================================
+
+Esta auditoria documenta los errores encontrados al ejecutar:
+- Backend: python -c "from backend.api.main import app"
+- Frontend: npm run type-check (tsc --noEmit)
+
+RESULTADO:
+- Backend: 0 errores (OK)
+- Frontend: 34 errores TypeScript
+
+================================================================================
+CATEGORIA 1: BACKEND - ESTADO
+================================================================================
+
+## RESULTADO: OK - Sin errores
+
+El backend inicia correctamente con la configuracion de .env:
+```
+2025-12-13 23:44:41,840 - backend.api.main - INFO - CORS middleware configured with 4 allowed origins
+2025-12-13 23:44:41,840 - backend.api.middleware.logging - INFO - Request logging middleware configured
+2025-12-13 23:44:41,840 - backend.api.middleware.error_handler - INFO - Exception handlers configured
+2025-12-13 23:44:41,840 - backend.api.main - INFO - Rate limiting configured: 100 requests/hour default, 10 interactions/minute
+2025-12-13 23:44:42,096 - backend.api.main - INFO - Routers registered with prefix: /api/v1 (23 routers total, including FASE 3.2)
+2025-12-13 23:44:42,096 - backend.api.main - INFO - Prometheus metrics endpoint: /metrics
+Backend OK
+```
+
+NOTA: El error de datetime mencionado en cortez14 ya fue corregido.
+
+================================================================================
+CATEGORIA 2: FRONTEND - TIPOS FALTANTES EN index.ts
+================================================================================
+
+## DEFECTO 2.1 - Tipos no importados desde api.types.ts
+SEVERIDAD: CRITICA (Bloquea compilacion)
+ARCHIVO: frontEnd/src/types/index.ts
+LINEAS: 164, 165, 168, 254, 255, 299-303
+
+ERRORES:
+```
+TS2304: Cannot find name 'SessionResponse'
+TS2304: Cannot find name 'SessionCreate'
+TS2304: Cannot find name 'InteractionRequest'
+TS2304: Cannot find name 'ActivityResponse'
+TS2304: Cannot find name 'PolicyConfig'
+TS2304: Cannot find name 'RiskDimensionScore' (5 ocurrencias)
+```
+
+CAUSA: Los type aliases usan tipos que no estan re-exportados
+
+FIX REQUERIDO:
+Agregar a los re-exports en index.ts:
+```typescript
+export type {
+  SessionResponse,
+  SessionCreate,
+  InteractionRequest,
+  ActivityResponse,
+  PolicyConfig,
+  RiskDimensionScore,
+} from './api.types';
+```
+
+================================================================================
+CATEGORIA 3: FRONTEND - RiskAnalysisViewer.tsx
+================================================================================
+
+## DEFECTO 3.1 - Parametros con tipo any implicito
+SEVERIDAD: BAJA
+ARCHIVO: frontEnd/src/components/RiskAnalysisViewer.tsx
+LINEA: 144
+
+ERRORES:
+```
+TS7006: Parameter 'indicator' implicitly has an 'any' type.
+TS7006: Parameter 'index' implicitly has an 'any' type.
+```
+
+FIX REQUERIDO:
+```typescript
+// Cambiar de:
+.map((indicator, index) => ...)
+// A:
+.map((indicator: string, index: number) => ...)
+```
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 3.2 - Propiedad 'mitigation' no existe en RiskItem
+SEVERIDAD: MEDIA
+ARCHIVO: frontEnd/src/components/RiskAnalysisViewer.tsx
+LINEAS: 186, 189
+
+ERROR:
+```
+TS2339: Property 'mitigation' does not exist on type 'RiskItem'.
+```
+
+FIX REQUERIDO:
+Agregar 'mitigation' al tipo RiskItem o usar propiedad existente
+
+================================================================================
+CATEGORIA 4: FRONTEND - HttpClient.ts
+================================================================================
+
+## DEFECTO 4.1 - Tipos genericos incompatibles
+SEVERIDAD: BAJA
+ARCHIVO: frontEnd/src/core/http/HttpClient.ts
+LINEAS: 275, 296
+
+ERRORES:
+```
+TS2322: Type '(value: T | PromiseLike<T>) => void' is not assignable to
+type '(value: unknown) => void'.
+
+TS2345: Argument of type 'unknown' is not assignable to parameter of
+type 'Error | AxiosError<unknown, any>'.
+```
+
+CAUSA: Problemas con inferencia de tipos genericos en Promise handlers
+
+FIX REQUERIDO:
+Revisar tipos genericos, usar type assertions donde sea necesario
+
+================================================================================
+CATEGORIA 5: FRONTEND - RiskAnalyzer.tsx
+================================================================================
+
+## DEFECTO 5.1 - SessionResponse vs SessionSummary
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/features/risks/components/RiskAnalyzer.tsx
+LINEA: 104
+
+ERROR:
+```
+TS2345: Argument of type 'SessionResponse[]' is not assignable to
+parameter of type 'SetStateAction<SessionSummary[]>'.
+  Type 'SessionResponse' is not assignable to type 'SessionSummary'.
+    Types of property 'mode' are incompatible.
+      Type 'string' is not assignable to type 'SessionMode | undefined'.
+```
+
+FIX REQUERIDO:
+- Opcion A: Cambiar el state a SessionResponse[]
+- Opcion B: Mapear SessionResponse a SessionSummary
+- Opcion C: Usar type assertion con validacion
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 5.2 - RiskAnalysis risk_level incompatible
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/features/risks/components/RiskAnalyzer.tsx
+LINEA: 118
+
+ERROR:
+```
+TS2345: Type 'string' is not assignable to type 'RiskLevel'.
+```
+
+FIX REQUERIDO:
+Usar type assertion: `risk_level as RiskLevel`
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 5.3 - created_at puede ser undefined
+SEVERIDAD: MEDIA
+ARCHIVO: frontEnd/src/features/risks/components/RiskAnalyzer.tsx
+LINEA: 177
+
+ERROR:
+```
+TS2769: Argument of type 'string | undefined' is not assignable to
+parameter of type 'string | number | Date'.
+```
+
+FIX REQUERIDO:
+Agregar validacion: `new Date(session.created_at ?? session.start_time)`
+
+================================================================================
+CATEGORIA 6: FRONTEND - TraceabilityViewer.tsx
+================================================================================
+
+## DEFECTO 6.1 - SessionResponse vs SessionSummary
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/features/traceability/components/TraceabilityViewer.tsx
+LINEA: 102
+
+ERROR:
+```
+TS2345: Argument of type 'SessionResponse[]' is not assignable to
+parameter of type 'SetStateAction<SessionSummary[]>'.
+```
+
+FIX REQUERIDO: Mismo que DEFECTO 5.1
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 6.2 - InteractionSimple vs Interaction
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/features/traceability/components/TraceabilityViewer.tsx
+LINEA: 116
+
+ERROR:
+```
+TS2345: Type 'InteractionSimple[]' is not assignable to type 'Interaction[]'.
+  Property 'user_input' is missing in type 'InteractionSimple' but required in type 'Interaction'.
+```
+
+FIX REQUERIDO:
+Cambiar el tipo del state a InteractionSimple[]
+
+================================================================================
+CATEGORIA 7: FRONTEND - DashboardPage.tsx
+================================================================================
+
+## DEFECTO 7.1 - HealthResponse vs HealthStatus
+SEVERIDAD: MEDIA
+ARCHIVO: frontEnd/src/pages/DashboardPage.tsx
+LINEA: 52
+
+ERROR:
+```
+TS2345: Type 'HealthResponse' is not assignable to type 'HealthStatus'.
+  Types of property 'status' are incompatible.
+    Type 'string' is not assignable to type '"healthy" | "degraded" | "unhealthy"'.
+```
+
+FIX REQUERIDO:
+- Opcion A: Cambiar state a HealthResponse | null
+- Opcion B: Type assertion: `status as "healthy" | "degraded" | "unhealthy"`
+
+================================================================================
+CATEGORIA 8: FRONTEND - ERRORES DE IMPORT (default export)
+================================================================================
+
+## DEFECTO 8.1 - ProcessEvaluator no tiene default export
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/pages/EvaluatorPage.tsx
+LINEA: 5
+
+ERROR:
+```
+TS2613: Module '...ProcessEvaluator' has no default export.
+Did you mean to use 'import { ProcessEvaluator } from ...'?
+```
+
+FIX REQUERIDO:
+```typescript
+// Cambiar de:
+import ProcessEvaluator from '...';
+// A:
+import { ProcessEvaluator } from '...';
+```
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 8.2 - GitAnalytics no tiene default export
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/pages/GitAnalyticsPage.tsx
+LINEA: 5
+
+ERROR:
+```
+TS2613: Module '...GitAnalytics' has no default export.
+```
+
+FIX REQUERIDO: Mismo patron que DEFECTO 8.1
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 8.3 - RiskAnalyzer no tiene default export
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/pages/RisksPage.tsx
+LINEA: 5
+
+ERROR:
+```
+TS2613: Module '...RiskAnalyzer' has no default export.
+```
+
+FIX REQUERIDO: Mismo patron que DEFECTO 8.1
+
+================================================================================
+CATEGORIA 9: FRONTEND - SimulatorsPage.tsx
+================================================================================
+
+## DEFECTO 9.1 - Metodo 'list' no existe en SimulatorsService
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/pages/SimulatorsPage.tsx
+LINEA: 58
+
+ERROR:
+```
+TS2339: Property 'list' does not exist on type 'SimulatorsService'.
+```
+
+FIX REQUERIDO:
+Implementar metodo list() en SimulatorsService o usar metodo existente
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 9.2 - SessionMode enum incorrecto
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/pages/SimulatorsPage.tsx
+LINEA: 141
+
+ERROR:
+```
+TS2322: Type '"SIMULATOR"' is not assignable to type 'SessionMode'.
+```
+
+CAUSA: SessionMode enum usa valores lowercase, no UPPERCASE
+
+FIX REQUERIDO:
+```typescript
+// Cambiar de:
+mode: "SIMULATOR"
+// A:
+mode: SessionMode.SIMULATOR // o "simulator"
+```
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 9.3 - Argumentos faltantes en llamada
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/pages/SimulatorsPage.tsx
+LINEA: 243
+
+ERROR:
+```
+TS2554: Expected 2 arguments, but got 1.
+```
+
+FIX REQUERIDO:
+Revisar firma del metodo y proporcionar argumentos faltantes
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 9.4 - Propiedad 'cognitiveState' vs 'cognitive_state'
+SEVERIDAD: MEDIA
+ARCHIVO: frontEnd/src/pages/SimulatorsPage.tsx
+LINEA: 259
+
+ERROR:
+```
+TS2561: Object literal may only specify known properties, but 'cognitiveState'
+does not exist. Did you mean to write 'cognitive_state'?
+```
+
+FIX REQUERIDO:
+```typescript
+// Cambiar de:
+cognitiveState: ...
+// A:
+cognitive_state: ...
+```
+
+================================================================================
+CATEGORIA 10: FRONTEND - TutorPage.tsx
+================================================================================
+
+## DEFECTO 10.1 - SessionMode enum incorrecto
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/pages/TutorPage.tsx
+LINEA: 65
+
+ERROR:
+```
+TS2322: Type '"TUTOR"' is not assignable to type 'SessionMode'.
+```
+
+FIX REQUERIDO:
+```typescript
+// Cambiar de:
+mode: "TUTOR"
+// A:
+mode: SessionMode.TUTOR // o "tutor"
+```
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 10.2 - TraceabilityN4 nodes metadata incompatible
+SEVERIDAD: MEDIA
+ARCHIVO: frontEnd/src/pages/TutorPage.tsx
+LINEA: 193
+
+ERROR:
+```
+TS2345: Types of property 'nodes' are incompatible.
+  Type 'number | undefined' is not assignable to type 'number'.
+```
+
+CAUSA: metadata.processing_time_ms puede ser undefined pero el tipo espera number
+
+FIX REQUERIDO:
+Actualizar TraceabilityNode.metadata para permitir campos opcionales:
+```typescript
+metadata: {
+  processing_time_ms?: number;  // opcional
+  tokens_used?: number;
+  model?: string;
+  transformations?: string[];
+}
+```
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 10.3 - RiskAnalysis5D risk_level incompatible
+SEVERIDAD: ALTA
+ARCHIVO: frontEnd/src/pages/TutorPage.tsx
+LINEA: 216
+
+ERROR:
+```
+TS2345: Type 'string' is not assignable to type
+'"low" | "medium" | "high" | "critical" | "info"'.
+```
+
+FIX REQUERIDO:
+Type assertion: `risk_level as RiskLevel`
+
+--------------------------------------------------------------------------------
+
+## DEFECTO 10.4 - Propiedad 'processingTime' no existe
+SEVERIDAD: MEDIA
+ARCHIVO: frontEnd/src/pages/TutorPage.tsx
+LINEAS: 385, 386
+
+ERROR:
+```
+TS2339: Property 'processingTime' does not exist on type.
+```
+
+CAUSA: El nombre correcto es 'processing_time_ms' en snake_case
+
+FIX REQUERIDO:
+```typescript
+// Cambiar de:
+metadata.processingTime
+// A:
+metadata.processing_time_ms
+```
+
+================================================================================
+RESUMEN DE FIXES REQUERIDOS POR PRIORIDAD
+================================================================================
+
+## CRITICA (Bloquea compilacion):
+1. DEFECTO 2.1 - Re-exportar tipos faltantes en types/index.ts (10 errores)
+
+## ALTA (Errores de tipos severos):
+2. DEFECTO 5.1, 6.1 - SessionResponse vs SessionSummary (2 archivos)
+3. DEFECTO 5.2, 10.3 - RiskLevel type assertion (2 archivos)
+4. DEFECTO 6.2 - InteractionSimple vs Interaction
+5. DEFECTO 8.1, 8.2, 8.3 - Import named exports (3 archivos)
+6. DEFECTO 9.1 - SimulatorsService.list() no existe
+7. DEFECTO 9.2, 10.1 - SessionMode UPPERCASE vs lowercase (2 archivos)
+8. DEFECTO 9.3 - Argumentos faltantes
+
+## MEDIA (Errores de tipos menores):
+9. DEFECTO 3.2 - RiskItem.mitigation
+10. DEFECTO 5.3 - created_at undefined
+11. DEFECTO 7.1 - HealthResponse vs HealthStatus
+12. DEFECTO 9.4 - cognitiveState vs cognitive_state
+13. DEFECTO 10.2 - TraceabilityNode metadata opcional
+14. DEFECTO 10.4 - processingTime vs processing_time_ms
+
+## BAJA (Mejoras de tipos):
+15. DEFECTO 3.1 - Tipos any implicitos
+16. DEFECTO 4.1 - Tipos genericos HttpClient
+
+================================================================================
+ESTADISTICAS
+================================================================================
+
+Total defectos encontrados: 34
+- Backend: 0 (CORREGIDO desde cortez14)
+- Frontend: 34
+  - CRITICOS: 10 (tipos faltantes en index.ts)
+  - ALTOS: 12
+  - MEDIOS: 8
+  - BAJOS: 4
+
+Archivos afectados (13):
+1. frontEnd/src/types/index.ts (10 errores)
+2. frontEnd/src/components/RiskAnalysisViewer.tsx (4 errores)
+3. frontEnd/src/core/http/HttpClient.ts (2 errores)
+4. frontEnd/src/features/risks/components/RiskAnalyzer.tsx (3 errores)
+5. frontEnd/src/features/traceability/components/TraceabilityViewer.tsx (2 errores)
+6. frontEnd/src/pages/DashboardPage.tsx (1 error)
+7. frontEnd/src/pages/EvaluatorPage.tsx (1 error)
+8. frontEnd/src/pages/GitAnalyticsPage.tsx (1 error)
+9. frontEnd/src/pages/RisksPage.tsx (1 error)
+10. frontEnd/src/pages/SimulatorsPage.tsx (4 errores)
+11. frontEnd/src/pages/TutorPage.tsx (5 errores)
+
+================================================================================
+COMPARACION CON CORTEZ14
+================================================================================
+
+| Metrica              | Cortez14 | Cortez16 | Cambio |
+|----------------------|----------|----------|--------|
+| Errores Backend      | 1        | 0        | -1 (CORREGIDO) |
+| Errores Frontend     | 46       | 34       | -12    |
+| Total                | 47       | 34       | -13    |
+
+MEJORAS DESDE CORTEZ14:
+- El error critico de datetime en backend fue corregido
+- Se redujeron 12 errores de TypeScript en frontend
+- SimulatorsHub.tsx ya no aparece con errores de enum
+
+NUEVOS/PERSISTENTES:
+- Los errores de tipos en index.ts persisten
+- Los errores de import (default vs named) persisten
+- Los errores de SessionMode enum persisten
+
+================================================================================
+PROXIMOS PASOS RECOMENDADOS
+================================================================================
+
+1. URGENTE: Re-exportar tipos faltantes en types/index.ts (elimina 10 errores)
+2. ALTA: Corregir imports de named exports en 3 pages
+3. ALTA: Cambiar SessionMode de UPPERCASE a lowercase
+4. MEDIA: Unificar tipos SessionResponse/SessionSummary
+5. MEDIA: Agregar type assertions para RiskLevel
+6. BAJA: Corregir nombres de propiedades snake_case
+
+================================================================================
+CORRECCIONES APLICADAS (FIX Cortez16)
+================================================================================
+
+TODOS LOS 34 ERRORES HAN SIDO CORREGIDOS.
+
+Archivos modificados:
+
+1. frontEnd/src/types/index.ts
+   - Agregado import para tipos usados localmente (SessionResponse, etc.)
+   - Agregado campo 'mitigation' a RiskItem
+   - TraceabilityNode.metadata ahora tiene campos opcionales
+   - Simulator.status ahora incluye 'deprecated'
+
+2. frontEnd/src/pages/EvaluatorPage.tsx
+   - Cambiado import de default a named export
+
+3. frontEnd/src/pages/GitAnalyticsPage.tsx
+   - Cambiado import de default a named export
+
+4. frontEnd/src/pages/RisksPage.tsx
+   - Cambiado import de default a named export
+
+5. frontEnd/src/pages/TutorPage.tsx
+   - Importado SessionMode enum
+   - Cambiado mode: 'TUTOR' a mode: SessionMode.TUTOR
+   - Removido processingTime del metadata (no existe en ChatMessage)
+   - Agregado casting para RiskAnalysis5D
+
+6. frontEnd/src/pages/SimulatorsPage.tsx
+   - Importado SessionMode enum
+   - Cambiado mode: 'SIMULATOR' a mode: SessionMode.SIMULATOR
+   - Cambiado simulatorsService.list() a getAllSimulators()
+   - Corregido interact() para usar 2 argumentos
+   - Cambiado cognitiveState a cognitive_state
+
+7. frontEnd/src/pages/DashboardPage.tsx
+   - Cambiado HealthStatus a HealthResponse
+
+8. frontEnd/src/features/risks/components/RiskAnalyzer.tsx
+   - Agregado casting para SessionSummary[]
+   - Agregado casting para RiskAnalysis type
+   - Handle undefined created_at
+
+9. frontEnd/src/features/traceability/components/TraceabilityViewer.tsx
+   - Renombrado Interaction a InteractionItem
+   - Agregado campo prompt alternativo
+   - Handle both user_input y prompt
+
+10. frontEnd/src/components/RiskAnalysisViewer.tsx
+    - Agregado tipos explicitos para map parameters
+
+11. frontEnd/src/components/TraceabilityViewer.tsx
+    - Handle optional processing_time_ms con nullish coalescing
+
+12. frontEnd/src/core/http/HttpClient.ts
+    - Type assertion para queue resolve
+    - Type assertion para error en reject
+
+================================================================================
+RESULTADO FINAL
+================================================================================
+
+| Metrica              | Antes   | Despues | Cambio |
+|----------------------|---------|---------|--------|
+| Errores Backend      | 0       | 0       | 0      |
+| Errores Frontend     | 34      | 0       | -34    |
+| Total                | 34      | 0       | -34    |
+
+ESTADO: TODOS LOS ERRORES CORREGIDOS
+
+Comando de verificacion:
+  cd frontEnd && npm run type-check
+
+================================================================================
+Generated with Claude Code (claude.ai/claude-code)
+Fecha: 2025-12-13

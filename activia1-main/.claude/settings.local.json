@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(set SECRET_KEY=test_secret_key_for_dev_only_12345)",
+      "Bash(set JWT_SECRET_KEY=test_jwt_secret_key_for_dev_12345:*)",
+      "Bash(set DATABASE_URL=sqlite:///./test.db)",
+      "Bash(set LLM_PROVIDER=mock)",
+      "Bash(cmd /c \"set SECRET_KEY=test_secret_key_for_dev_only_12345 & set JWT_SECRET_KEY=test_jwt_secret_key_for_dev_12345 & set DATABASE_URL=sqlite:///./test.db & set LLM_PROVIDER=mock & python -c \"\"from backend.api.main import app; print(''Backend OK'')\"\"\")",
+      "Bash(powershell -Command \"$env:SECRET_KEY=''test_secret_key_for_dev_only_12345''; $env:JWT_SECRET_KEY=''test_jwt_secret_key_for_dev_12345''; $env:DATABASE_URL=''sqlite:///./test.db''; $env:LLM_PROVIDER=''mock''; cd ''C:\\00000pid2026\\activeIA\\FASE-4-main\\FASE-4-main''; python -c ''from backend.api.main import app; print(\"\"Backend OK\"\")''\")",
+      "Bash(find:*)",
+      "Bash(powershell -Command \"cd ''C:\\00000pid2026\\activeIA\\FASE-4-main\\FASE-4-main\\frontEnd''; npm run type-check\")",
+      "Bash(cmd /c \"set SECRET_KEY=test_secret_key_for_dev_only_12345 && set JWT_SECRET_KEY=test_jwt_secret_key_for_dev_12345 && set DATABASE_URL=sqlite:///./test.db && set LLM_PROVIDER=mock && python -c \"\"from backend.api.main import app; print(''Backend OK'')\"\"\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

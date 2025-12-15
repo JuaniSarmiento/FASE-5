@@ -1,0 +1,268 @@
+# ============================================================================
+# Docker Compose - Monitoring Stack (Prometheus + Grafana)
+# ============================================================================
+# Extend docker-compose.yml con servicios de monitoreo
+#
+# REMEDIACIÓN: HIGH-01 - Implementar Prometheus metrics
+# Audit Score: 8.2/10 → 9.0/10 (esperado)
+#
+# Uso:
+#   docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+# O con perfiles (recomendado):
+#   docker-compose --profile monitoring up -d
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # Prometheus - Metrics Storage & Querying
+  # ==========================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: ai-native-prometheus
+    profiles:
+      - monitoring  # Solo se inicia con: docker-compose --profile monitoring up
+    ports:
+      - "9090:9090"
+    volumes:
+      # Configuración de Prometheus
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+      # Persistencia de datos (time series database)
+      - prometheus_data:/prometheus
+
+      # Reglas de alertas (opcional)
+      # - ./prometheus_alerts:/etc/prometheus/alerts:ro
+
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'  # Retener datos por 15 días
+      - '--storage.tsdb.retention.size=10GB'  # Máximo 10GB
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'  # Permite reload de config con POST /-/reload
+
+    networks:
+      - ai-native-network
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+    depends_on:
+      - api
+
+  # ==========================================================================
+  # Grafana - Visualization & Dashboards
+  # ==========================================================================
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: ai-native-grafana
+    profiles:
+      - monitoring
+    ports:
+      - "3001:3000"  # Puerto 3001 para no colisionar con frontend en 3000
+    environment:
+      # Configuración básica
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=
+
+      # Datasources provisioning
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+
+      # Server settings
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+
+      # Analytics (deshabilitar telemetría)
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+
+      # Users settings
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_ALLOW_ORG_CREATE=false
+
+    volumes:
+      # Persistencia de datos (dashboards, usuarios, etc.)
+      - grafana_data:/var/lib/grafana
+
+      # Provisioning de datasources (Prometheus automático)
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+
+      # Dashboards predefinidos
+      # - ./grafana_dashboard.json:/var/lib/grafana/dashboards/ai-native-mvp.json:ro
+
+    networks:
+      - ai-native-network
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+    depends_on:
+      - prometheus
+
+  # ==========================================================================
+  # Alertmanager (Opcional) - Alert Management
+  # ==========================================================================
+  # alertmanager:
+  #   image: prom/alertmanager:v0.26.0
+  #   container_name: ai-native-alertmanager
+  #   profiles:
+  #     - monitoring
+  #   ports:
+  #     - "9093:9093"
+  #   volumes:
+  #     - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+  #     - alertmanager_data:/alertmanager
+  #   command:
+  #     - '--config.file=/etc/alertmanager/alertmanager.yml'
+  #     - '--storage.path=/alertmanager'
+  #   networks:
+  #     - ai-native-network
+  #   restart: unless-stopped
+
+  # ==========================================================================
+  # Node Exporter (Opcional) - Host Metrics
+  # ==========================================================================
+  # node-exporter:
+  #   image: prom/node-exporter:v1.7.0
+  #   container_name: ai-native-node-exporter
+  #   profiles:
+  #     - monitoring
+  #   ports:
+  #     - "9100:9100"
+  #   command:
+  #     - '--path.procfs=/host/proc'
+  #     - '--path.sysfs=/host/sys'
+  #     - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+  #   volumes:
+  #     - /proc:/host/proc:ro
+  #     - /sys:/host/sys:ro
+  #   networks:
+  #     - ai-native-network
+  #   restart: unless-stopped
+
+  # ==========================================================================
+  # Postgres Exporter (Opcional) - PostgreSQL Metrics
+  # ==========================================================================
+  # postgres-exporter:
+  #   image: prometheuscommunity/postgres-exporter:v0.15.0
+  #   container_name: ai-native-postgres-exporter
+  #   profiles:
+  #     - monitoring
+  #   ports:
+  #     - "9187:9187"
+  #   environment:
+  #     - DATA_SOURCE_NAME=postgresql://ai_native:ai_native_password@postgres:5432/ai_native?sslmode=disable
+  #   networks:
+  #     - ai-native-network
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - postgres
+
+  # ==========================================================================
+  # Redis Exporter (Opcional) - Redis Metrics
+  # ==========================================================================
+  # redis-exporter:
+  #   image: oliver006/redis_exporter:v1.55.0
+  #   container_name: ai-native-redis-exporter
+  #   profiles:
+  #     - monitoring
+  #   ports:
+  #     - "9121:9121"
+  #   environment:
+  #     - REDIS_ADDR=redis:6379
+  #   networks:
+  #     - ai-native-network
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - redis
+
+# ============================================================================
+# Volumes (Persistencia de Datos)
+# ============================================================================
+volumes:
+  prometheus_data:
+    name: ai-native-prometheus-data
+    driver: local
+
+  grafana_data:
+    name: ai-native-grafana-data
+    driver: local
+
+  # alertmanager_data:
+  #   name: ai-native-alertmanager-data
+  #   driver: local
+
+# ============================================================================
+# Notas de Uso
+# ============================================================================
+#
+# INICIAR STACK COMPLETO CON MONITOREO:
+#   docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+# O CON PERFILES (más limpio):
+#   docker-compose --profile monitoring up -d
+#
+# ACCEDER A INTERFACES WEB:
+#   - API Swagger: http://localhost:8000/docs
+#   - API Metrics: http://localhost:8000/metrics
+#   - Prometheus UI: http://localhost:9090
+#   - Grafana UI: http://localhost:3001 (admin/admin)
+#
+# DETENER STACK:
+#   docker-compose --profile monitoring down
+#
+# VER LOGS:
+#   docker-compose --profile monitoring logs -f prometheus
+#   docker-compose --profile monitoring logs -f grafana
+#
+# RELOAD DE CONFIGURACIÓN PROMETHEUS (sin reiniciar):
+#   curl -X POST http://localhost:9090/-/reload
+#
+# BACKUP DE GRAFANA DASHBOARDS:
+#   docker exec -it ai-native-grafana \
+#     curl -X GET http://admin:admin@localhost:3000/api/dashboards/uid/ai-native-mvp
+#
+# QUERIES ÚTILES EN PROMETHEUS:
+#   - Total interactions: ai_native_interactions_total
+#   - Request rate: rate(ai_native_interactions_total[1m])
+#   - LLM latency p99: histogram_quantile(0.99, ai_native_llm_call_duration_seconds_bucket)
+#   - Cache hit rate: ai_native_cache_hit_rate_percent
+#   - DB pool usage: ai_native_database_pool_checked_out / ai_native_database_pool_size
+#   - Critical risks: ai_native_risks_detected_total{risk_level="CRITICAL"}
+#
+# CONFIGURAR GRAFANA DATASOURCE (primera vez):
+#   1. Login en http://localhost:3001 (admin/admin)
+#   2. Ir a Configuration > Data Sources
+#   3. Add data source > Prometheus
+#   4. URL: http://prometheus:9090
+#   5. Save & Test
+#
+# IMPORTAR DASHBOARD:
+#   1. Ir a Dashboards > Import
+#   2. Upload JSON file: grafana_dashboard.json
+#   3. Select Prometheus datasource
+#   4. Import
+#
+# ALERTAS RECOMENDADAS:
+#   - High LLM latency (> 10s)
+#   - Low cache hit rate (< 50%)
+#   - DB pool saturation (> 90%)
+#   - High risk detection rate
+#   - Governance block spike
+#
+# ============================================================================

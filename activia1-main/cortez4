@@ -1,0 +1,741 @@
+# ============================================================================
+# CORTEZ4 - Database Architecture Audit
+# ============================================================================
+# Fecha: 2025-12-12
+# Auditor: Claude (DBA & Software Architect Role)
+# Scope: Database models, indexes, FK constraints, Pydantic sync, repositories
+# Total Issues: 75+ (15 CRITICAL, 27 HIGH, 22 MEDIUM, 11 LOW)
+# ============================================================================
+
+# ============================================================================
+# SECTION 1: DATABASE MODEL DEFECTS (backend/database/models.py)
+# ============================================================================
+
+## 1.1 CRITICAL - Missing Composite Indexes for Query Performance
+# -----------------------------------------------------------------------------
+# These indexes are essential for the most common query patterns
+
+### 1.1.1 RiskDB - Missing idx_risk_session_resolved
+# Query pattern: "Get unresolved risks for a session" (very frequent)
+# Location: RiskDB class (~line 290)
+# Current: Only individual indexes on session_id and resolved
+# Impact: Full table scan when filtering by session_id AND resolved
+FIX:
+```python
+# Add to RiskDB.__table_args__
+Index('idx_risk_session_resolved', 'session_id', 'resolved'),
+```
+
+### 1.1.2 RiskDB - Missing idx_risk_session_level
+# Query pattern: "Get critical/high risks for session" (dashboard queries)
+# Location: RiskDB class (~line 290)
+FIX:
+```python
+Index('idx_risk_session_level', 'session_id', 'risk_level'),
+```
+
+### 1.1.3 CognitiveTraceDB - Missing idx_trace_session_level
+# Query pattern: "Get N4-level traces for session" (traceability endpoints)
+# Location: CognitiveTraceDB class (~line 400)
+FIX:
+```python
+Index('idx_trace_session_level', 'session_id', 'trace_level'),
+```
+
+### 1.1.4 EvaluationDB - Missing idx_eval_session_created
+# Query pattern: "Get latest evaluation for session" (ORDER BY created_at)
+# Location: EvaluationDB class (~line 350)
+FIX:
+```python
+Index('idx_eval_session_created', 'session_id', 'created_at'),
+```
+
+### 1.1.5 InteractionDB - Missing idx_interaction_session_created
+# Query pattern: "Get paginated interactions" (chat history)
+# Location: InteractionDB class (~line 180)
+FIX:
+```python
+Index('idx_interaction_session_created', 'session_id', 'created_at'),
+```
+
+## 1.2 CRITICAL - Missing GIN Indexes for JSONB N4 Dimensions
+# -----------------------------------------------------------------------------
+# The N4 cognitive traceability stores rich JSONB data that needs indexing
+# Without GIN indexes, queries on these columns perform sequential scans
+
+### 1.2.1-1.2.6 CognitiveTraceDB JSONB columns missing GIN indexes
+# Location: CognitiveTraceDB class (~line 400-450)
+# Columns: cognitive_intention, justification_analysis, alternatives_considered,
+#          decision_factors, metacognitive_reflection, trace_metadata
+FIX:
+```python
+# Add to CognitiveTraceDB.__table_args__ (PostgreSQL only)
+Index('idx_trace_cognitive_intention_gin', 'cognitive_intention', postgresql_using='gin'),
+Index('idx_trace_justification_gin', 'justification_analysis', postgresql_using='gin'),
+Index('idx_trace_alternatives_gin', 'alternatives_considered', postgresql_using='gin'),
+Index('idx_trace_decisions_gin', 'decision_factors', postgresql_using='gin'),
+Index('idx_trace_metacognitive_gin', 'metacognitive_reflection', postgresql_using='gin'),
+Index('idx_trace_metadata_gin', 'trace_metadata', postgresql_using='gin'),
+```
+
+## 1.3 CRITICAL - Missing Foreign Key CASCADE/SET NULL
+# -----------------------------------------------------------------------------
+# These FKs lack ondelete behavior, causing integrity issues on parent deletion
+
+### 1.3.1 RiskDB.session_id - Missing CASCADE
+# Location: RiskDB (~line 285)
+# Impact: Orphan risks when session deleted
+FIX:
+```python
+# Change from:
+session_id = Column(String(36), ForeignKey("sessions.id"), nullable=False, index=True)
+# To:
+session_id = Column(String(36), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+```
+
+### 1.3.2 EvaluationDB.session_id - Missing CASCADE
+# Location: EvaluationDB (~line 345)
+FIX:
+```python
+session_id = Column(String(36), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+```
+
+### 1.3.3 CognitiveTraceDB.session_id - Missing CASCADE
+# Location: CognitiveTraceDB (~line 395)
+FIX:
+```python
+session_id = Column(String(36), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+```
+
+### 1.3.4 InteractionDB.session_id - Missing CASCADE
+# Location: InteractionDB (~line 175)
+FIX:
+```python
+session_id = Column(String(36), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+```
+
+### 1.3.5 GitTraceDB.session_id - Missing CASCADE
+# Location: GitTraceDB (~line 500)
+FIX:
+```python
+session_id = Column(String(36), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+```
+
+### 1.3.6 RiskAlertDB.risk_id - Missing CASCADE
+# Location: RiskAlertDB (~line 870)
+FIX:
+```python
+risk_id = Column(String(36), ForeignKey("risks.id", ondelete="CASCADE"), nullable=False)
+```
+
+## 1.4 HIGH - GitTraceDB.commit_hash Unique Constraint Issue
+# -----------------------------------------------------------------------------
+# Location: GitTraceDB (~line 510)
+# Problem: commit_hash has unique=True, but same commit can appear in multiple sessions
+# (e.g., student works on same codebase across sessions)
+FIX:
+```python
+# Change from:
+commit_hash = Column(String(40), unique=True, index=True)
+# To composite unique constraint:
+commit_hash = Column(String(40), index=True)
+
+# Add to __table_args__:
+UniqueConstraint('session_id', 'commit_hash', name='uq_git_trace_session_commit'),
+```
+
+## 1.5 HIGH - JSON Array Fields Without Referential Integrity
+# -----------------------------------------------------------------------------
+# These store IDs as JSON arrays instead of proper relationships
+
+### 1.5.1 RiskDB.trace_ids - Should be M2M relationship
+# Location: RiskDB (~line 300)
+# Current: trace_ids = Column(JSON, default=list)
+# Problem: No referential integrity, orphan IDs if traces deleted
+FIX (OPTION A - Keep JSON but validate):
+```python
+# Add validation in repository layer
+def validate_trace_ids(self, trace_ids: List[str]) -> List[str]:
+    existing = self.db.query(CognitiveTraceDB.id).filter(
+        CognitiveTraceDB.id.in_(trace_ids)
+    ).all()
+    return [t[0] for t in existing]
+```
+FIX (OPTION B - Proper M2M, requires migration):
+```python
+# Create association table
+risk_trace_association = Table(
+    'risk_trace_association',
+    Base.metadata,
+    Column('risk_id', String(36), ForeignKey('risks.id', ondelete='CASCADE')),
+    Column('trace_id', String(36), ForeignKey('cognitive_traces.id', ondelete='CASCADE')),
+    PrimaryKeyConstraint('risk_id', 'trace_id')
+)
+```
+
+### 1.5.2 EvaluationDB.related_cognitive_traces - Same issue
+# Location: EvaluationDB (~line 365)
+# Same fix pattern as 1.5.1
+
+## 1.6 HIGH - Missing Check Constraints for Enum Values
+# -----------------------------------------------------------------------------
+# Enum columns store strings but lack DB-level validation
+
+### 1.6.1 RiskDB.risk_level - No check constraint
+# Location: RiskDB (~line 288)
+FIX:
+```python
+# Add to __table_args__:
+CheckConstraint(
+    "risk_level IN ('low', 'medium', 'high', 'critical', 'info')",
+    name='ck_risk_level_valid'
+),
+```
+
+### 1.6.2 SessionDB.status - No check constraint
+# Location: SessionDB (~line 80)
+FIX:
+```python
+CheckConstraint(
+    "status IN ('active', 'completed', 'paused', 'aborted')",
+    name='ck_session_status_valid'
+),
+```
+
+### 1.6.3 CognitiveTraceDB.trace_level - No check constraint
+# Location: CognitiveTraceDB (~line 405)
+FIX:
+```python
+CheckConstraint(
+    "trace_level IN ('n1_superficial', 'n2_tecnico', 'n3_interaccional', 'n4_cognitivo')",
+    name='ck_trace_level_valid'
+),
+```
+
+## 1.7 MEDIUM - Timestamp Column Inconsistencies
+# -----------------------------------------------------------------------------
+# Some models use created_at/updated_at, others use timestamp
+
+### 1.7.1 RiskDB uses 'detected_at' instead of 'created_at'
+# Location: RiskDB (~line 295)
+# Impact: Inconsistent querying, requires different column names
+RECOMMENDATION: Keep detected_at but add created_at alias property
+
+### 1.7.2 Some models missing updated_at
+# Location: GitTraceDB, RiskAlertDB
+FIX:
+```python
+updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+```
+
+## 1.8 MEDIUM - Default Value Issues
+# -----------------------------------------------------------------------------
+
+### 1.8.1 UserDB.login_count default should use server_default
+# Location: UserDB (~line 50)
+# Current: login_count = Column(Integer, default=0)
+# Problem: default= only works in Python, not raw SQL inserts
+FIX:
+```python
+login_count = Column(Integer, default=0, server_default='0')
+```
+
+### 1.8.2 RiskDB.resolved default should use server_default
+# Location: RiskDB (~line 292)
+FIX:
+```python
+resolved = Column(Boolean, default=False, server_default='false')
+```
+
+## 1.9 LOW - Index Naming Inconsistencies
+# -----------------------------------------------------------------------------
+# Some indexes auto-named, others explicitly named
+
+### 1.9.1 Standardize index naming convention
+RECOMMENDATION:
+- Pattern: ix_{table}_{column} for single column
+- Pattern: ix_{table}_{col1}_{col2} for composite
+- Pattern: gin_{table}_{column} for GIN indexes
+
+
+# ============================================================================
+# SECTION 2: PYDANTIC SYNCHRONIZATION ISSUES
+# ============================================================================
+
+## 2.1 CRITICAL - RiskDimension Enum Case Mismatch
+# -----------------------------------------------------------------------------
+# Location: backend/api/schemas/risk_analysis.py vs backend/models/risk.py
+# Problem: API schemas use UPPERCASE, domain models use lowercase
+# Impact: Risk creation fails with validation errors
+
+### Pydantic Schema (UPPERCASE):
+```python
+class RiskDimension(str, Enum):
+    COGNITIVE = "COGNITIVE"
+    ETHICAL = "ETHICAL"
+    EPISTEMIC = "EPISTEMIC"
+    TECHNICAL = "TECHNICAL"
+    GOVERNANCE = "GOVERNANCE"
+```
+
+### Domain Model (lowercase):
+```python
+class RiskDimension(str, Enum):
+    COGNITIVE = "cognitive"
+    ETHICAL = "ethical"
+    ...
+```
+
+FIX (Standardize to lowercase everywhere):
+```python
+# In backend/api/schemas/risk_analysis.py
+class RiskDimension(str, Enum):
+    COGNITIVE = "cognitive"
+    ETHICAL = "ethical"
+    EPISTEMIC = "epistemic"
+    TECHNICAL = "technical"
+    GOVERNANCE = "governance"
+```
+
+## 2.2 HIGH - SessionMode Storage Inconsistency
+# -----------------------------------------------------------------------------
+# Location: backend/core/cognitive_engine.py
+# Problem: AgentMode enum uses UPPERCASE values but stored lowercase in DB
+FIX:
+```python
+# Ensure consistent storage:
+session.mode = mode.value.lower()  # Always lowercase
+```
+
+## 2.3 HIGH - Field Name Mismatches (ORM vs Pydantic)
+# -----------------------------------------------------------------------------
+
+### 2.3.1 CognitiveTraceDB.trace_metadata vs CognitiveTrace.metadata
+# Location: backend/database/models.py:~410 vs backend/api/schemas/traces.py
+# ORM: trace_metadata (renamed to avoid SQLAlchemy reserved word)
+# Pydantic: metadata
+FIX: Already documented in CLAUDE.md, but add explicit alias:
+```python
+class CognitiveTraceResponse(BaseModel):
+    metadata: Optional[Dict] = Field(alias="trace_metadata")
+
+    class Config:
+        populate_by_name = True
+```
+
+### 2.3.2 Timestamp field mapping
+# ORM: created_at, updated_at
+# Some Pydantic schemas: timestamp
+FIX: Add computed property or alias
+
+## 2.4 MEDIUM - GitTrace Field Discrepancies
+# -----------------------------------------------------------------------------
+# Location: GitTraceDB vs GitTraceResponse
+
+### 2.4.1 Missing fields in Pydantic that exist in ORM:
+- cognitive_state (JSONB in ORM, missing in some schemas)
+- learning_indicators (JSONB in ORM, missing in response)
+FIX:
+```python
+class GitTraceResponse(BaseModel):
+    cognitive_state: Optional[Dict] = None
+    learning_indicators: Optional[Dict] = None
+```
+
+## 2.5 MEDIUM - Optional vs Required Field Mismatches
+# -----------------------------------------------------------------------------
+
+### 2.5.1 RiskCreate.session_id
+# Location: backend/api/schemas/risk_analysis.py
+# ORM: session_id is NOT NULL (required)
+# Some Pydantic schemas mark it Optional
+FIX: Ensure session_id is required in all create schemas:
+```python
+class RiskCreate(BaseModel):
+    session_id: str  # Required, not Optional[str]
+    dimension: RiskDimension
+    ...
+```
+
+## 2.6 LOW - Enum Value Documentation
+# -----------------------------------------------------------------------------
+# Add docstrings to enum classes for API documentation
+FIX:
+```python
+class RiskLevel(str, Enum):
+    """Risk severity levels for the AR-IA agent."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+    INFO = "info"
+```
+
+
+# ============================================================================
+# SECTION 3: REPOSITORY PATTERN ISSUES (backend/database/repositories.py)
+# ============================================================================
+
+## 3.1 CRITICAL - Inconsistent Rollback Patterns
+# -----------------------------------------------------------------------------
+# Location: Multiple repository methods
+# Problem: Some methods have try/except with rollback, others don't
+# Impact: Failed transactions leave DB in inconsistent state
+
+### 3.1.1 UserRepository.create - No rollback on failure
+# Location: ~line 50
+FIX:
+```python
+def create(self, user: UserDB) -> UserDB:
+    try:
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+    except SQLAlchemyError as e:
+        self.db.rollback()
+        raise RepositoryError(f"Failed to create user: {e}") from e
+```
+
+### 3.1.2 SessionRepository.update_status - No rollback
+# Location: ~line 150
+FIX: Same pattern as above
+
+## 3.2 CRITICAL - Race Condition on UserDB.login_count
+# -----------------------------------------------------------------------------
+# Location: UserRepository.increment_login_count (~line 80)
+# Problem: read-modify-write without locking
+# Impact: Lost updates under concurrent logins
+FIX:
+```python
+def increment_login_count(self, user_id: str) -> None:
+    # Use atomic update instead of read-modify-write
+    self.db.query(UserDB).filter(UserDB.id == user_id).update(
+        {UserDB.login_count: UserDB.login_count + 1},
+        synchronize_session='fetch'
+    )
+    self.db.commit()
+```
+
+## 3.3 CRITICAL - Missing Pessimistic Locking for Updates
+# -----------------------------------------------------------------------------
+# Location: SessionRepository.update (~line 160)
+# Problem: No FOR UPDATE lock, concurrent updates can overwrite
+FIX:
+```python
+def update(self, session_id: str, **kwargs) -> Optional[SessionDB]:
+    session = self.db.query(SessionDB).filter(
+        SessionDB.id == session_id
+    ).with_for_update().first()  # Lock row
+
+    if session:
+        for key, value in kwargs.items():
+            setattr(session, key, value)
+        self.db.commit()
+    return session
+```
+
+## 3.4 HIGH - Missing Batch Loading Methods
+# -----------------------------------------------------------------------------
+# Pattern: Multiple single queries should be batched
+
+### 3.4.1 RiskRepository - Missing get_by_session_ids
+# Location: RiskRepository class
+FIX:
+```python
+def get_by_session_ids(self, session_ids: List[str]) -> Dict[str, List[RiskDB]]:
+    """Batch load risks for multiple sessions (N+1 prevention)."""
+    risks = self.db.query(RiskDB).filter(
+        RiskDB.session_id.in_(session_ids)
+    ).all()
+
+    result = defaultdict(list)
+    for risk in risks:
+        result[risk.session_id].append(risk)
+    return dict(result)
+```
+
+### 3.4.2 EvaluationRepository - Missing get_latest_by_session_ids
+# Location: EvaluationRepository class
+FIX:
+```python
+def get_latest_by_session_ids(self, session_ids: List[str]) -> Dict[str, EvaluationDB]:
+    """Get latest evaluation per session in single query."""
+    subq = self.db.query(
+        EvaluationDB.session_id,
+        func.max(EvaluationDB.created_at).label('max_created')
+    ).filter(
+        EvaluationDB.session_id.in_(session_ids)
+    ).group_by(EvaluationDB.session_id).subquery()
+
+    evals = self.db.query(EvaluationDB).join(
+        subq,
+        and_(
+            EvaluationDB.session_id == subq.c.session_id,
+            EvaluationDB.created_at == subq.c.max_created
+        )
+    ).all()
+
+    return {e.session_id: e for e in evals}
+```
+
+### 3.4.3 InteractionRepository - Missing get_counts_by_session_ids
+FIX:
+```python
+def get_counts_by_session_ids(self, session_ids: List[str]) -> Dict[str, int]:
+    """Count interactions per session in single query."""
+    counts = self.db.query(
+        InteractionDB.session_id,
+        func.count(InteractionDB.id).label('count')
+    ).filter(
+        InteractionDB.session_id.in_(session_ids)
+    ).group_by(InteractionDB.session_id).all()
+
+    return {session_id: count for session_id, count in counts}
+```
+
+## 3.5 HIGH - Unbounded Queries Without Pagination
+# -----------------------------------------------------------------------------
+# Location: Multiple repository methods
+# Problem: Methods return all records without limit
+# Impact: Memory exhaustion on large datasets
+
+### 3.5.1 CognitiveTraceRepository.get_by_student - No limit
+# Location: ~line 400
+FIX:
+```python
+def get_by_student(
+    self,
+    student_id: str,
+    limit: int = 100,
+    offset: int = 0
+) -> List[CognitiveTraceDB]:
+    return self.db.query(CognitiveTraceDB).filter(
+        CognitiveTraceDB.student_id == student_id
+    ).order_by(CognitiveTraceDB.created_at.desc()).offset(offset).limit(limit).all()
+```
+
+### 3.5.2 RiskRepository.get_all_unresolved - No limit
+# Location: ~line 320
+FIX: Add limit parameter with reasonable default (100)
+
+## 3.6 HIGH - Missing Exists Checks
+# -----------------------------------------------------------------------------
+# Pattern: Use EXISTS instead of fetching full objects for validation
+
+### 3.6.1 SessionRepository - Missing exists method
+FIX:
+```python
+def exists(self, session_id: str) -> bool:
+    """Check if session exists without loading full object."""
+    return self.db.query(
+        exists().where(SessionDB.id == session_id)
+    ).scalar()
+```
+
+### 3.6.2 UserRepository - Missing exists_by_email
+FIX:
+```python
+def exists_by_email(self, email: str) -> bool:
+    return self.db.query(
+        exists().where(UserDB.email == email)
+    ).scalar()
+```
+
+## 3.7 MEDIUM - Eager Loading Inconsistencies
+# -----------------------------------------------------------------------------
+# Location: Multiple methods use different loading strategies
+
+### 3.7.1 SessionRepository.get_with_relations - Inconsistent options
+# Some use joinedload, others selectinload without clear pattern
+FIX: Standardize:
+- Use selectinload for collections (one-to-many)
+- Use joinedload for single objects (many-to-one)
+```python
+def get_with_full_relations(self, session_id: str) -> Optional[SessionDB]:
+    return self.db.query(SessionDB).options(
+        selectinload(SessionDB.interactions),  # Collection
+        selectinload(SessionDB.traces),        # Collection
+        selectinload(SessionDB.risks),         # Collection
+        selectinload(SessionDB.evaluations),   # Collection
+        joinedload(SessionDB.user),            # Single object
+        joinedload(SessionDB.activity),        # Single object
+    ).filter(SessionDB.id == session_id).first()
+```
+
+## 3.8 MEDIUM - Missing Soft Delete Support
+# -----------------------------------------------------------------------------
+# Location: All repositories use hard delete
+# Problem: No audit trail, no recovery option
+FIX (Add to BaseRepository):
+```python
+def soft_delete(self, entity_id: str) -> bool:
+    """Mark entity as deleted without removing."""
+    result = self.db.query(self.model_class).filter(
+        self.model_class.id == entity_id
+    ).update({'deleted_at': func.now()})
+    self.db.commit()
+    return result > 0
+```
+
+## 3.9 MEDIUM - Transaction Boundary Issues
+# -----------------------------------------------------------------------------
+# Location: Service layer sometimes commits, sometimes repository does
+# Problem: Unclear transaction boundaries
+
+### 3.9.1 AIGateway creates multiple records without transaction
+# Location: backend/core/ai_gateway.py
+FIX: Use explicit transaction context:
+```python
+async def process_interaction(self, ...):
+    async with self.db.begin():
+        interaction = await interaction_repo.create(...)
+        trace = await trace_repo.create(...)
+        # All commits at end or all rollback on error
+```
+
+## 3.10 LOW - Missing Repository Type Hints
+# -----------------------------------------------------------------------------
+# Location: Some methods lack return type hints
+FIX: Add complete type hints:
+```python
+def get_by_id(self, entity_id: str) -> Optional[ModelType]:
+    ...
+def get_all(self, limit: int = 100) -> List[ModelType]:
+    ...
+```
+
+## 3.11 LOW - Query Result Caching Opportunities
+# -----------------------------------------------------------------------------
+# Location: Frequently accessed static data
+# Example: ActivityDB (exercises don't change often)
+FIX: Add caching decorator:
+```python
+@lru_cache(maxsize=100, ttl=3600)
+def get_activity_by_id(self, activity_id: str) -> Optional[ActivityDB]:
+    return self.db.query(ActivityDB).filter(ActivityDB.id == activity_id).first()
+```
+
+
+# ============================================================================
+# SECTION 4: MIGRATION REQUIREMENTS
+# ============================================================================
+
+## 4.1 Required Alembic Migrations
+# -----------------------------------------------------------------------------
+
+### Migration 1: Add composite indexes
+```python
+# alembic/versions/xxx_add_composite_indexes.py
+def upgrade():
+    op.create_index('idx_risk_session_resolved', 'risks', ['session_id', 'resolved'])
+    op.create_index('idx_risk_session_level', 'risks', ['session_id', 'risk_level'])
+    op.create_index('idx_trace_session_level', 'cognitive_traces', ['session_id', 'trace_level'])
+    op.create_index('idx_eval_session_created', 'evaluations', ['session_id', 'created_at'])
+    op.create_index('idx_interaction_session_created', 'interactions', ['session_id', 'created_at'])
+
+def downgrade():
+    op.drop_index('idx_risk_session_resolved')
+    op.drop_index('idx_risk_session_level')
+    op.drop_index('idx_trace_session_level')
+    op.drop_index('idx_eval_session_created')
+    op.drop_index('idx_interaction_session_created')
+```
+
+### Migration 2: Add GIN indexes (PostgreSQL only)
+```python
+def upgrade():
+    # Only for PostgreSQL
+    op.execute('''
+        CREATE INDEX idx_trace_cognitive_intention_gin
+        ON cognitive_traces USING gin (cognitive_intention);
+    ''')
+    # ... repeat for other JSONB columns
+
+def downgrade():
+    op.drop_index('idx_trace_cognitive_intention_gin')
+```
+
+### Migration 3: Add FK CASCADE constraints
+```python
+def upgrade():
+    # Drop existing FK and recreate with CASCADE
+    op.drop_constraint('risks_session_id_fkey', 'risks', type_='foreignkey')
+    op.create_foreign_key(
+        'risks_session_id_fkey', 'risks', 'sessions',
+        ['session_id'], ['id'], ondelete='CASCADE'
+    )
+    # Repeat for other FKs
+```
+
+### Migration 4: Add check constraints
+```python
+def upgrade():
+    op.create_check_constraint(
+        'ck_risk_level_valid', 'risks',
+        "risk_level IN ('low', 'medium', 'high', 'critical', 'info')"
+    )
+    op.create_check_constraint(
+        'ck_session_status_valid', 'sessions',
+        "status IN ('active', 'completed', 'paused', 'aborted')"
+    )
+```
+
+
+# ============================================================================
+# SECTION 5: IMPLEMENTATION PRIORITY
+# ============================================================================
+
+## Priority 1 - CRITICAL (Do First, High Impact)
+1. [1.1.1-1.1.5] Add composite indexes - Major query performance
+2. [1.3.1-1.3.6] Add CASCADE on FKs - Data integrity
+3. [2.1] Fix RiskDimension enum case - API breaks without this
+4. [3.1.1-3.1.2] Add rollback patterns - Data consistency
+5. [3.2] Fix login_count race condition - Data corruption risk
+
+## Priority 2 - HIGH (Do Soon, Important)
+6. [1.2.1-1.2.6] Add GIN indexes - N4 query performance
+7. [1.4] Fix GitTrace unique constraint - Allows multi-session commits
+8. [1.6.1-1.6.3] Add check constraints - Data validation
+9. [3.4.1-3.4.3] Add batch loading methods - N+1 prevention
+10. [3.5.1-3.5.2] Add pagination limits - Memory safety
+11. [3.6.1-3.6.2] Add exists methods - Performance
+12. [2.2] Fix SessionMode storage - Consistency
+
+## Priority 3 - MEDIUM (Improve, Good Practice)
+13. [1.5.1-1.5.2] Fix JSON array fields - Referential integrity
+14. [1.7.1-1.7.2] Timestamp standardization - Consistency
+15. [1.8.1-1.8.2] Server defaults - Raw SQL compatibility
+16. [2.3-2.5] Pydantic field alignment - API consistency
+17. [3.7.1] Eager loading standards - Query efficiency
+18. [3.8] Soft delete support - Audit capability
+19. [3.9.1] Transaction boundaries - ACID compliance
+
+## Priority 4 - LOW (Nice to Have)
+20. [1.9.1] Index naming conventions - Maintainability
+21. [2.6] Enum documentation - API docs
+22. [3.10] Type hints completion - Code quality
+23. [3.11] Query caching - Performance optimization
+
+
+# ============================================================================
+# SECTION 6: TESTING CHECKLIST
+# ============================================================================
+
+After implementing fixes, verify:
+
+[ ] 1. Run pytest tests/ -v --cov=backend - All tests pass
+[ ] 2. Check migration: alembic upgrade head - No errors
+[ ] 3. Test risk creation with lowercase dimension - API accepts
+[ ] 4. Test session deletion - Cascades to related records
+[ ] 5. Run EXPLAIN ANALYZE on key queries - Uses new indexes
+[ ] 6. Load test concurrent logins - No lost login_count updates
+[ ] 7. Test rollback on failed create - DB state clean
+[ ] 8. Test batch endpoints - Single query for multiple sessions
+[ ] 9. Frontend smoke test - No 500 errors on dashboard
+[ ] 10. Check docker-compose logs - No SQLAlchemy warnings
+
+
+# ============================================================================
+# END OF CORTEZ4 AUDIT
+# ============================================================================

@@ -1,0 +1,130 @@
+{
+  "metadata": {
+    "export_timestamp": "2025-11-22T11:02:23.875092Z",
+    "export_format": "json",
+    "total_records": 9,
+    "data_types": [
+      "traces",
+      "evaluations",
+      "risks"
+    ],
+    "anonymization_applied": true,
+    "privacy_standard": "k-anonymity",
+    "tool": "AI-Native MVP Export Module",
+    "version": "1.0.0"
+  },
+  "data": {
+    "traces": [
+      {
+        "activity_id": "prog2_tp1_colas",
+        "cognitive_state": "EXPLORACION_CONCEPTUAL",
+        "ai_involvement": 0.3,
+        "content": "¿Qué es una cola circular?",
+        "created_at": "2025-11-01 10:30:00",
+        "student_hash": "2127a15cfc24",
+        "session_hash": "399e071b4862",
+        "week": "2025-W44"
+      },
+      {
+        "activity_id": "prog2_tp1_colas",
+        "cognitive_state": "PLANIFICACION",
+        "ai_involvement": 0.4,
+        "content": "Voy a usar un arreglo circular",
+        "created_at": "2025-11-01 11:00:00",
+        "student_hash": "2127a15cfc24",
+        "session_hash": "399e071b4862",
+        "week": "2025-W44"
+      },
+      {
+        "activity_id": "prog2_tp1_colas",
+        "cognitive_state": "EXPLORACION_CONCEPTUAL",
+        "ai_involvement": 0.6,
+        "content": "Dame el código completo",
+        "created_at": "2025-11-02 14:15:00",
+        "student_hash": "21b107479c1e",
+        "session_hash": "a0225f0dca49",
+        "week": "2025-W44"
+      },
+      {
+        "activity_id": "prog2_tp1_colas",
+        "cognitive_state": "IMPLEMENTACION",
+        "ai_involvement": 0.7,
+        "content": "Sigo sin entender",
+        "created_at": "2025-11-02 14:45:00",
+        "student_hash": "21b107479c1e",
+        "session_hash": "a0225f0dca49",
+        "week": "2025-W44"
+      },
+      {
+        "activity_id": "prog2_tp2_pilas",
+        "cognitive_state": "PLANIFICACION",
+        "ai_involvement": 0.2,
+        "content": "¿Cuál es la diferencia entre pila y cola?",
+        "created_at": "2025-11-03 09:00:00",
+        "student_hash": "2620ac4dd8d6",
+        "session_hash": "9aeea5d6ea57",
+        "week": "2025-W45"
+      },
+      {
+        "activity_id": "prog2_tp2_pilas",
+        "cognitive_state": "IMPLEMENTACION",
+        "ai_involvement": 0.3,
+        "content": "Implementé push() correctamente",
+        "created_at": "2025-11-03 10:30:00",
+        "student_hash": "2620ac4dd8d6",
+        "session_hash": "9aeea5d6ea57",
+        "week": "2025-W45"
+      }
+    ],
+    "evaluations": [
+      {
+        "activity_id": "prog2_tp1_colas",
+        "overall_competency_level": "EN_DESARROLLO",
+        "overall_score": 6.5,
+        "dimensions": {
+          "problem_decomposition": 7.0,
+          "self_regulation": 5.0,
+          "logical_coherence": 6.0
+        },
+        "created_at": "2025-11-01 12:00:00",
+        "student_hash": "2127a15cfc24",
+        "session_hash": "399e071b4862",
+        "week": "2025-W44"
+      },
+      {
+        "activity_id": "prog2_tp1_colas",
+        "overall_competency_level": "INICIAL",
+        "overall_score": 4.0,
+        "dimensions": {
+          "problem_decomposition": 3.0,
+          "self_regulation": 4.0,
+          "logical_coherence": 5.0
+        },
+        "created_at": "2025-11-02 15:30:00",
+        "student_hash": "21b107479c1e",
+        "session_hash": "a0225f0dca49",
+        "week": "2025-W44"
+      }
+    ],
+    "risks": [
+      {
+        "activity_id": "prog2_tp1_colas",
+        "risk_type": "COGNITIVE_DELEGATION",
+        "risk_level": "HIGH",
+        "dimension": "COGNITIVE",
+        "description": "Delegación total detectada",
+        "evidence": [
+          "Dame el código completo"
+        ],
+        "recommendations": [
+          "Exigir descomposición del problema"
+        ],
+        "created_at": "2025-11-02 14:15:00",
+        "resolved": false,
+        "student_hash": "21b107479c1e",
+        "session_hash": "a0225f0dca49",
+        "week": "2025-W44"
+      }
+    ]
+  }
+}

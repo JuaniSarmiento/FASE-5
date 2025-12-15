@@ -1,0 +1,21 @@
+# ============================================================================
+# Grafana Datasource Provisioning - Prometheus
+# ============================================================================
+# Configuración automática de Prometheus como datasource en Grafana
+#
+# REMEDIACIÓN: HIGH-01 - Implementar Prometheus metrics
+# ============================================================================
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+    version: 1

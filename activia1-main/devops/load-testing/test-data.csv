@@ -1,0 +1,31 @@
+student_id,activity_id,prompt
+student_load_001,prog2_tp1_colas,¿Qué es una cola circular?
+student_load_002,prog2_tp1_colas,¿Cómo implemento el método enqueue?
+student_load_003,prog2_tp1_colas,Explícame la diferencia entre cola estática y dinámica
+student_load_004,prog2_tp1_colas,¿Cuál es la complejidad de las operaciones básicas?
+student_load_005,prog2_tp1_colas,Dame un ejemplo de uso real de colas
+student_load_006,prog2_tp1_colas,¿Cómo manejo el caso de cola llena?
+student_load_007,prog2_tp1_colas,Necesito ayuda con el método dequeue
+student_load_008,prog2_tp1_colas,¿Qué ventajas tiene usar arreglos circulares?
+student_load_009,prog2_tp1_colas,Explícame el concepto de front y rear
+student_load_010,prog2_tp1_colas,¿Cómo verifico si la cola está vacía?
+student_load_011,prog2_tp2_pilas,¿Qué es una pila?
+student_load_012,prog2_tp2_pilas,Explícame LIFO vs FIFO
+student_load_013,prog2_tp2_pilas,¿Cómo implemento push y pop?
+student_load_014,prog2_tp2_pilas,Dame ejemplos de uso de pilas
+student_load_015,prog2_tp2_pilas,¿Qué es el stack overflow?
+student_load_016,prog2_tp3_listas,¿Qué es una lista enlazada?
+student_load_017,prog2_tp3_listas,Explícame la diferencia entre simple y doble enlace
+student_load_018,prog2_tp3_listas,¿Cómo inserto un nodo al principio?
+student_load_019,prog2_tp3_listas,Necesito ayuda con la eliminación de nodos
+student_load_020,prog2_tp3_listas,¿Cuándo usar listas vs arreglos?
+student_load_021,prog2_tp4_arboles,¿Qué es un árbol binario?
+student_load_022,prog2_tp4_arboles,Explícame los recorridos: inorden, preorden, postorden
+student_load_023,prog2_tp4_arboles,¿Cómo implemento un ABB?
+student_load_024,prog2_tp4_arboles,¿Qué es el balanceo de árboles?
+student_load_025,prog2_tp4_arboles,Dame casos de uso reales de árboles
+student_load_026,prog2_tp5_grafos,¿Qué es un grafo?
+student_load_027,prog2_tp5_grafos,Explícame grafos dirigidos vs no dirigidos
+student_load_028,prog2_tp5_grafos,¿Cómo implemento BFS?
+student_load_029,prog2_tp5_grafos,Necesito ayuda con DFS
+student_load_030,prog2_tp5_grafos,¿Cuál es la aplicación de grafos en redes sociales?
