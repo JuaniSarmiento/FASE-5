@@ -38,6 +38,10 @@ const LEVEL_CONFIG = {
 };
 
 const TraceabilityViewer: React.FC<TraceabilityViewerProps> = ({ data }) => {
+  // Safe access to metadata and its fields
+  const metadata = data.metadata || {};
+  const totalProcessingTime = metadata.total_processing_time_ms ?? 0;
+  const createdAt = metadata.created_at ?? '';
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -55,7 +59,7 @@ const TraceabilityViewer: React.FC<TraceabilityViewerProps> = ({ data }) => {
       <div className="grid grid-cols-3 gap-4">
         <div className="glass rounded-xl p-4 text-center">
           <div className="text-2xl mb-1">⏱️</div>
-          <div className="text-lg font-bold text-white">{data.metadata.total_processing_time_ms}ms</div>
+          <div className="text-lg font-bold text-white">{totalProcessingTime}ms</div>
           <div className="text-xs text-gray-400">Tiempo total</div>
         </div>
         <div className="glass rounded-xl p-4 text-center">
@@ -133,7 +137,7 @@ const TraceabilityViewer: React.FC<TraceabilityViewerProps> = ({ data }) => {
 
       {/* Created At */}
       <div className="text-center text-xs text-gray-500">
-        Generado: {new Date(data.metadata.created_at).toLocaleString()}
+        Generado: {createdAt ? new Date(createdAt).toLocaleString() : 'N/A'}
       </div>
     </div>
   );

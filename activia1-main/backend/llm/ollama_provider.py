@@ -19,6 +19,7 @@ import logging
 import httpx
 import json
 import asyncio
+import re
 from contextlib import asynccontextmanager
 
 from .base import LLMProvider, LLMMessage, LLMResponse, LLMRole
@@ -82,6 +83,14 @@ class OllamaProvider(LLMProvider):
         self.model = self.config.get("model", "llama2")
         self.temperature = self.config.get("temperature", 0.7)
         self.timeout = self.config.get("timeout", 60.0)
+
+        # Keep model loaded to reduce repeated load latency (Ollama `keep_alive`).
+        # Ollama expects a Go duration string (e.g., "10m", "1h", "0s").
+        # We also accept numeric strings from env (e.g., "600", "-1") and convert to seconds.
+        self.keep_alive = self._normalize_keep_alive(self.config.get("keep_alive"))
+
+        # Default Ollama options applied to every call (e.g., num_ctx, num_thread, num_gpu)
+        self.default_options: Dict[str, Any] = dict(self.config.get("options") or {})
         
         # Retry configuration for intelligent retries
         self.max_retries = self.config.get("max_retries", 3)
@@ -104,9 +113,39 @@ class OllamaProvider(LLMProvider):
                 "model": self.model,
                 "temperature": self.temperature,
                 "timeout": self.timeout,
-                "max_retries": self.max_retries
+                "max_retries": self.max_retries,
+                "keep_alive": self.keep_alive,
+                "default_options": self.default_options,
             }
         )
+
+    @staticmethod
+    def _normalize_keep_alive(value: Any) -> Optional[str]:
+        """Normalize keep_alive into an Ollama-compatible Go duration string.
+
+        Ollama parses keep_alive using Go's time.ParseDuration, so plain numbers
+        like "-1" or "0" are invalid (missing unit). We treat bare numbers as seconds.
+        """
+        if value is None:
+            return None
+
+        if isinstance(value, (int, float)):
+            return f"{value}s"
+
+        if isinstance(value, str):
+            raw = value.strip()
+            if raw == "":
+                return None
+
+            # Bare number => seconds ("600" -> "600s", "-1" -> "-1s")
+            if re.fullmatch(r"[+-]?\d+(?:\.\d+)?", raw):
+                return f"{raw}s"
+
+            # Already a duration string (e.g., "10m", "1h", "0s")
+            return raw
+
+        # Fallback: stringify unknown types
+        return str(value)
 
     def _get_client(self) -> httpx.AsyncClient:
         """Lazy initialization of HTTP client. Creates persistent connection."""
@@ -266,6 +305,12 @@ class OllamaProvider(LLMProvider):
                 "temperature": temperature,
             }
         }
+
+        if self.keep_alive is not None:
+            payload["keep_alive"] = self.keep_alive
+
+        if self.default_options:
+            payload["options"].update(self.default_options)
 
         # Add num_predict if max_tokens is specified
         if max_tokens is not None:
@@ -438,6 +483,12 @@ class OllamaProvider(LLMProvider):
                 "temperature": temp,
             }
         }
+
+        if self.keep_alive is not None:
+            payload["keep_alive"] = self.keep_alive
+
+        if self.default_options:
+            payload["options"].update(self.default_options)
 
         # Add num_predict if max_tokens is specified
         if max_tokens is not None:

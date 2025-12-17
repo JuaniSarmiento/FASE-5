@@ -135,6 +135,27 @@ class LLMProviderFactory:
             if timeout:
                 config["timeout"] = float(timeout)
 
+            # Keep model loaded in memory to avoid repeated cold starts
+            keep_alive = os.getenv("OLLAMA_KEEP_ALIVE")
+            if keep_alive:
+                config["keep_alive"] = keep_alive
+
+            # Optional performance-related parameters (passed to Ollama as options)
+            # These can significantly affect latency depending on model + hardware.
+            options: dict[str, object] = {}
+            num_ctx = os.getenv("OLLAMA_NUM_CTX")
+            if num_ctx:
+                options["num_ctx"] = int(num_ctx)
+            num_thread = os.getenv("OLLAMA_NUM_THREAD")
+            if num_thread:
+                options["num_thread"] = int(num_thread)
+            num_gpu = os.getenv("OLLAMA_NUM_GPU")
+            if num_gpu:
+                options["num_gpu"] = int(num_gpu)
+
+            if options:
+                config["options"] = options
+
         elif provider_type == "mock":
             # Mock provider doesn't need configuration
             pass

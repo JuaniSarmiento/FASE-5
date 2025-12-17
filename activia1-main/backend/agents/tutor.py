@@ -13,6 +13,7 @@ Incorpora:
 """
 from typing import Optional, Dict, Any, List
 from enum import Enum
+from datetime import datetime
 import uuid
 import logging
 
@@ -138,80 +139,186 @@ class TutorCognitivoAgent:
             - metadata: Metadata completa para N4
             - semaforo: Estado del semáforo
         """
-        conversation_history = conversation_history or []
-        interaction_id = str(uuid.uuid4())
-        
-        # FASE 1-3: Procesamiento por Gobernanza (IPC -> GSR -> Andamiaje)
-        governance_result = self.governance_engine.process_student_request(
-            student_prompt=student_prompt,
-            student_profile=student_profile,
-            conversation_history=conversation_history
-        )
-        
-        analysis = governance_result["analysis"]
-        semaforo = governance_result["semaforo"]
-        strategy = governance_result["strategy"]
-        risk_details = governance_result["risk_details"]
-        
-        # FASE 4: Chequeo de Reglas Pedagógicas
-        rules_violations = self._check_pedagogical_rules(
-            student_prompt=student_prompt,
-            student_level=analysis.student_level,
-            conversation_history=conversation_history,
-            strategy=strategy
-        )
-        
-        # Si hay violaciones críticas (ej: solicitud de código), aplicar regla
-        if rules_violations.get("critical_violation"):
-            # Aplicar intervención de rechazo pedagógico
-            intervention_type = TutorInterventionType.RECHAZO_PEDAGOGICO
-            message = rules_violations.get("rejection_message")
-            counter_question = rules_violations.get("counter_question")
+        try:
+            # ============================================================
+            # VALIDACIÓN DE ENTRADA ROBUSTA
+            # ============================================================
+            if not session_id or not isinstance(session_id, str):
+                logger.error(f"Invalid session_id: {session_id}")
+                raise ValueError("session_id debe ser un string no vacío")
             
-            response = {
-                "message": f"{message}\n\n{counter_question}",
-                "intervention_type": intervention_type.value,
-                "semaforo": semaforo.value,
-                "requires_student_response": True,
-                "metadata": self._build_metadata(
-                    interaction_id,
+            if not student_prompt or not isinstance(student_prompt, str):
+                logger.error(f"Invalid student_prompt: {student_prompt}")
+                raise ValueError("student_prompt debe ser un string no vacío")
+            
+            if student_prompt.strip() == "":
+                logger.warning(f"Empty student_prompt for session {session_id}")
+                return self._generate_error_response(
+                    "Por favor, ingresá una pregunta o consulta para que pueda ayudarte.",
                     session_id,
-                    intervention_type,
-                    analysis,
-                    semaforo,
-                    strategy,
-                    rules_violations.get("rules_applied", [])
+                    "empty_prompt"
                 )
-            }
-        else:
-            # FASE 5: Generación de Respuesta Normal
-            response = await self._generate_tutor_response(
-                interaction_id=interaction_id,
-                session_id=session_id,
-                student_prompt=student_prompt,
-                strategy=strategy,
-                analysis=analysis,
-                semaforo=semaforo,
-                risk_details=risk_details
+            
+            if not isinstance(student_profile, dict):
+                logger.error(f"Invalid student_profile type: {type(student_profile)}")
+                student_profile = {}  # Usar perfil vacío como fallback
+            
+            conversation_history = conversation_history or []
+            if not isinstance(conversation_history, list):
+                logger.error(f"Invalid conversation_history type: {type(conversation_history)}")
+                conversation_history = []
+            
+            interaction_id = str(uuid.uuid4())
+            logger.info(f"Processing student request - Session: {session_id}, Interaction: {interaction_id}")
+            
+            # ============================================================
+            # FASE 1-3: Procesamiento por Gobernanza (IPC -> GSR -> Andamiaje)
+            # ============================================================
+            try:
+                governance_result = self.governance_engine.process_student_request(
+                    student_prompt=student_prompt,
+                    student_profile=student_profile,
+                    conversation_history=conversation_history
+                )
+            except Exception as e:
+                logger.error(f"Error en gobernanza para session {session_id}: {type(e).__name__}: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                return self._generate_error_response(
+                    "Tuve un problema procesando tu solicitud. Por favor, intentá reformular tu pregunta.",
+                    session_id,
+                    "governance_error",
+                    {"error_type": type(e).__name__, "error_message": str(e)}
+                )
+            
+            # ============================================================
+            # VALIDAR RESULTADO DE GOBERNANZA
+            # ============================================================
+            try:
+                analysis = governance_result["analysis"]
+                semaforo = governance_result["semaforo"]
+                strategy = governance_result["strategy"]
+                risk_details = governance_result["risk_details"]
+            except KeyError as e:
+                logger.error(f"Missing key in governance_result: {e}")
+                return self._generate_error_response(
+                    "Hubo un problema al analizar tu solicitud. Por favor, intentá nuevamente.",
+                    session_id,
+                    "governance_result_invalid",
+                    {"missing_key": str(e)}
+                )
+            except Exception as e:
+                logger.error(f"Error extracting governance_result fields: {type(e).__name__}: {e}")
+                return self._generate_error_response(
+                    "Ocurrió un error inesperado. Por favor, intentá reformular tu pregunta.",
+                    session_id,
+                    "governance_extraction_error",
+                    {"error_type": type(e).__name__, "error_message": str(e)}
+                )
+            
+            # ============================================================
+            # FASE 4: Chequeo de Reglas Pedagógicas
+            # ============================================================
+            try:
+                rules_violations = self._check_pedagogical_rules(
+                    student_prompt=student_prompt,
+                    student_level=analysis.student_level,
+                    conversation_history=conversation_history,
+                    strategy=strategy
+                )
+            except Exception as e:
+                logger.error(f"Error checking pedagogical rules: {type(e).__name__}: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                # Continuar sin violaciones de reglas
+                rules_violations = {"critical_violation": False, "rules_applied": []}
+            
+            # ============================================================
+            # APLICAR REGLAS O GENERAR RESPUESTA
+            # ============================================================
+            try:
+                # Si hay violaciones críticas (ej: solicitud de código), aplicar regla
+                if rules_violations.get("critical_violation"):
+                    # Aplicar intervención de rechazo pedagógico
+                    intervention_type = TutorInterventionType.RECHAZO_PEDAGOGICO
+                    message = rules_violations.get("rejection_message", "No puedo proporcionar una solución directa.")
+                    counter_question = rules_violations.get("counter_question", "¿Podés explicarme qué intentaste hasta ahora?")
+                    
+                    response = {
+                        "message": f"{message}\n\n{counter_question}",
+                        "intervention_type": intervention_type.value,
+                        "semaforo": semaforo.value if hasattr(semaforo, 'value') else str(semaforo),
+                        "requires_student_response": True,
+                        "metadata": self._build_metadata(
+                            interaction_id,
+                            session_id,
+                            intervention_type,
+                            analysis,
+                            semaforo,
+                            strategy,
+                            rules_violations.get("rules_applied", [])
+                        )
+                    }
+                else:
+                    # FASE 5: Generación de Respuesta Normal
+                    response = await self._generate_tutor_response(
+                        interaction_id=interaction_id,
+                        session_id=session_id,
+                        student_prompt=student_prompt,
+                        strategy=strategy,
+                        analysis=analysis,
+                        semaforo=semaforo,
+                        risk_details=risk_details
+                    )
+            except Exception as e:
+                logger.error(f"Error generating tutor response: {type(e).__name__}: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                return self._generate_error_response(
+                    "Tuve dificultades para generar una respuesta. Por favor, intentá reformular tu pregunta de otra manera.",
+                    session_id,
+                    "response_generation_error",
+                    {"error_type": type(e).__name__, "error_message": str(e)}
+                )
+            
+            # ============================================================
+            # FASE 6: Registrar Metadata para N4
+            # ============================================================
+            try:
+                self.metadata_tracker.record_intervention(
+                    session_id=session_id,
+                    interaction_id=interaction_id,
+                    intervention_type=response.get("intervention_type"),
+                    student_level=analysis.student_level,
+                    help_level=strategy.get("help_level", "medio"),
+                    semaforo_state=semaforo,
+                    cognitive_state=analysis.cognitive_state,
+                    student_intent=analysis.intent.value if hasattr(analysis.intent, 'value') else str(analysis.intent),
+                    autonomy_level=analysis.autonomy_level,
+                    rules_applied=rules_violations.get("rules_applied", []),
+                    restrictions_applied=risk_details.get("restrictions", []),
+                    additional_metadata=response.get("metadata", {})
+                )
+            except Exception as e:
+                logger.warning(f"Error recording metadata (non-critical): {type(e).__name__}: {e}")
+                # No bloqueamos la respuesta por errores de metadata
+            
+            logger.info(f"Successfully processed student request - Session: {session_id}, Interaction: {interaction_id}")
+            return response
+            
+        except ValueError as ve:
+            # Errores de validación ya fueron manejados arriba
+            raise ve
+        except Exception as e:
+            logger.error(f"Unexpected critical error in process_student_request: {type(e).__name__}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return self._generate_error_response(
+                "Ocurrió un error inesperado. Por favor, intentá nuevamente más tarde o contactá al soporte técnico.",
+                session_id if 'session_id' in locals() else "unknown",
+                "critical_error",
+                {"error_type": type(e).__name__, "error_message": str(e)}
             )
-        
-        # FASE 6: Registrar Metadata para N4
-        self.metadata_tracker.record_intervention(
-            session_id=session_id,
-            interaction_id=interaction_id,
-            intervention_type=response.get("intervention_type"),
-            student_level=analysis.student_level,
-            help_level=strategy.get("help_level", "medio"),
-            semaforo_state=semaforo,
-            cognitive_state=analysis.cognitive_state,
-            student_intent=analysis.intent.value,
-            autonomy_level=analysis.autonomy_level,
-            rules_applied=rules_violations.get("rules_applied", []),
-            restrictions_applied=risk_details.get("restrictions", []),
-            additional_metadata=response.get("metadata", {})
-        )
-        
-        return response
     
     def _check_pedagogical_rules(
         self,
@@ -322,8 +429,11 @@ class TutorCognitivoAgent:
                     max_tokens=500
                 )
                 
+                # Extraer el contenido de la respuesta del LLM
+                response_content = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
+                
                 legacy_response = {
-                    "message": llm_response,
+                    "message": response_content,
                     "requires_student_response": True
                 }
                 
@@ -364,8 +474,10 @@ class TutorCognitivoAgent:
                     student_prompt, analysis.cognitive_state, strategy, None
                 )
             else:
-                legacy_response = self._generate_clarification_request(
-                    student_prompt, analysis.cognitive_state
+                # Manejar tipos de respuesta desconocidos
+                logger.warning(f"Unknown response_type '{response_type}', using conceptual_explanation as fallback")
+                legacy_response = await self._generate_conceptual_explanation(
+                    student_prompt, analysis.cognitive_state, strategy
                 )
         
         # Combinar warning si existe
@@ -395,6 +507,40 @@ class TutorCognitivoAgent:
         response_dict["metadata"]["tutor_response"] = final_message
         
         return response_dict
+    
+    def _generate_error_response(
+        self,
+        error_message: str,
+        session_id: str,
+        error_type: str,
+        details: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Genera una respuesta de error consistente y amigable para el usuario
+        
+        Args:
+            error_message: Mensaje de error amigable para el estudiante
+            session_id: ID de la sesión
+            error_type: Tipo de error para logging
+            details: Detalles adicionales del error
+        
+        Returns:
+            Dict con respuesta de error estructurada
+        """
+        logger.warning(f"Generating error response - Session: {session_id}, Type: {error_type}")
+        
+        return {
+            "message": error_message,
+            "intervention_type": "error_recovery",
+            "semaforo": SemaforoState.AMARILLO.value,
+            "requires_student_response": True,
+            "metadata": {
+                "error_type": error_type,
+                "error_details": details or {},
+                "timestamp": datetime.now().isoformat(),
+                "session_id": session_id
+            }
+        }
     
     def _build_metadata(
         self,
@@ -597,13 +743,25 @@ class TutorCognitivoAgent:
         if self.llm_provider:
             try:
                 logger.info(f"Attempting to generate Socratic response with LLM for prompt: {prompt[:50]}...")
-                return await self._generate_socratic_with_llm(prompt, cognitive_state, strategy)
-            except Exception as e:
-                # Fallback a plantillas si falla el LLM
-                logger.error(f"LLM generation failed, falling back to template. Error: {type(e).__name__}: {str(e)}")
+                result = await self._generate_socratic_with_llm(prompt, cognitive_state, strategy)
+                logger.info(f"Successfully generated Socratic response with LLM")
+                return result
+            except AttributeError as e:
+                logger.error(f"LLM attribute error (method not found): {type(e).__name__}: {str(e)}")
                 import traceback
                 logger.error(f"Traceback: {traceback.format_exc()}")
-                pass
+                # Continue to fallback
+            except ValueError as e:
+                logger.error(f"LLM value error (invalid parameters): {type(e).__name__}: {str(e)}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                # Continue to fallback
+            except Exception as e:
+                # Fallback a plantillas si falla el LLM
+                logger.error(f"LLM generation failed unexpectedly, falling back to template. Error: {type(e).__name__}: {str(e)}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                # Continue to fallback
         else:
             logger.warning("No LLM provider available, using template")
         

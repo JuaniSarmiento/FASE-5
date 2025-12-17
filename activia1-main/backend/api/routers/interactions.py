@@ -3,9 +3,10 @@ Router para procesar interacciones estudiante-IA
 Este es el endpoint principal del sistema AI-Native
 """
 import logging
-from typing import List
+from typing import List, Optional
+import time
 from uuid import uuid4
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.orm import Session
 
 from backend.core.constants import utc_now
@@ -55,6 +56,7 @@ async def process_interaction(
     db: Session = Depends(get_db),
     gateway: AIGateway = Depends(get_ai_gateway),
     current_user: dict = Depends(get_current_user),
+    x_flow_id: Optional[str] = Header(None, alias="X-Flow-Id"),
 ) -> APIResponse[InteractionResponse]:
     """
     Procesa una interacción del estudiante con el sistema AI-Native.
@@ -89,6 +91,17 @@ async def process_interaction(
             "cognitive_intent": "UNDERSTANDING"
         }
     """
+    flow_id = x_flow_id or f"flow_{uuid4()}"
+    started_at = time.perf_counter()
+    logger.info(
+        "HTTP interaction request received",
+        extra={
+            "flow_id": flow_id,
+            "session_id": request.session_id,
+            "user_id": current_user.get("user_id"),
+        },
+    )
+
     # ✅ TRANSACTION MANAGEMENT: Wrap entire interaction processing in explicit transaction
     # Ensures atomicity: all DB operations (traces, risks, etc.) commit together or rollback together
     with transaction(db, "Process student interaction"):
@@ -122,13 +135,14 @@ async def process_interaction(
                 session_id=request.session_id,
                 prompt=request.prompt,
                 context=request.context or {},
+                flow_id=flow_id,
             )
         except ValidationError as e:
             # Error de validación de datos (Pydantic)
             logger.error(
                 "Validation error in interaction processing",
                 exc_info=True,
-                extra={"session_id": request.session_id, "validation_errors": e.errors()}
+                extra={"flow_id": flow_id, "session_id": request.session_id, "validation_errors": e.errors()}
             )
             raise InvalidInteractionError(
                 f"Invalid data in interaction: {e}",
@@ -139,7 +153,7 @@ async def process_interaction(
             logger.error(
                 "Missing required key in interaction",
                 exc_info=True,
-                extra={"session_id": request.session_id, "missing_key": str(e)}
+                extra={"flow_id": flow_id, "session_id": request.session_id, "missing_key": str(e)}
             )
             raise InvalidInteractionError(
                 f"Missing required data: {e}",
@@ -151,7 +165,7 @@ async def process_interaction(
             logger.warning(
                 "Value error in interaction processing",
                 exc_info=True,
-                extra={"session_id": request.session_id, "error": error_msg}
+                extra={"flow_id": flow_id, "session_id": request.session_id, "error": error_msg}
             )
 
             # Verificar si fue bloqueado por gobernanza
@@ -170,7 +184,7 @@ async def process_interaction(
             logger.error(
                 "Database error during interaction processing",
                 exc_info=True,
-                extra={"session_id": request.session_id, "db_error": str(e)}
+                extra={"flow_id": flow_id, "session_id": request.session_id, "db_error": str(e)}
             )
             raise InvalidInteractionError(
                 "Database error occurred while processing interaction",
@@ -181,7 +195,7 @@ async def process_interaction(
             logger.critical(
                 "Unexpected error in interaction processing",
                 exc_info=True,  # Stack trace completo
-                extra={"session_id": request.session_id, "error_type": type(e).__name__, "error": str(e)}
+                extra={"flow_id": flow_id, "session_id": request.session_id, "error_type": type(e).__name__, "error": str(e)}
             )
             raise InvalidInteractionError(
                 f"Unexpected error processing interaction: {type(e).__name__}",
@@ -218,6 +232,16 @@ async def process_interaction(
             # FIX FLUJO1-1: Incluir tokens_used del resultado del LLM
             tokens_used=result.get("tokens_used"),
         )
+
+    logger.info(
+        "HTTP interaction request completed",
+        extra={
+            "flow_id": flow_id,
+            "session_id": request.session_id,
+            "blocked": blocked,
+            "duration_ms": round((time.perf_counter() - started_at) * 1000, 2),
+        },
+    )
 
     # Transaction committed successfully - return response
     return APIResponse(

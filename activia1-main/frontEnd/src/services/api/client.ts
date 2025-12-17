@@ -19,7 +19,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
 // Crear instancia de axios
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // 30 segundos
+  timeout: 180000, // 180 segundos (3 minutos) - Aumentado para manejar tiempos de respuesta largos de Ollama en CPU
   headers: {
     'Content-Type': 'application/json',
   },

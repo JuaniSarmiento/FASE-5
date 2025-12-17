@@ -8,6 +8,7 @@ SPRINT 4: Integración completa con LLM real (Gemini/OpenAI) para respuestas din
 from typing import Optional, Dict, Any, List
 from enum import Enum
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ class SimuladorProfesionalAgent:
         self.trace_repo = trace_repo
         self.config = config or {}
         self.context = {}
+        self.flow_id = self.config.get("flow_id")
 
     async def interact(
         self, 
@@ -79,20 +81,81 @@ class SimuladorProfesionalAgent:
             context: Contexto adicional de la conversación
             session_id: ID de sesión para recuperar historial de conversación
         """
-        if self.simulator_type == SimuladorType.PRODUCT_OWNER:
-            return await self._interact_as_product_owner(student_input, context, session_id)
-        elif self.simulator_type == SimuladorType.SCRUM_MASTER:
-            return await self._interact_as_scrum_master(student_input, context, session_id)
-        elif self.simulator_type == SimuladorType.TECH_INTERVIEWER:
-            return await self._interact_as_interviewer(student_input, context, session_id)
-        elif self.simulator_type == SimuladorType.INCIDENT_RESPONDER:
-            return await self._interact_as_incident_responder(student_input, context, session_id)
-        elif self.simulator_type == SimuladorType.DEVSECOPS:
-            return await self._interact_as_devsecops(student_input, context, session_id)
-        elif self.simulator_type == SimuladorType.CLIENT:
-            return await self._interact_as_client(student_input, context, session_id)
-        else:
-            return {"message": "Simulador en desarrollo", "metadata": {}}
+        try:
+            # ============================================================
+            # VALIDACIÓN DE ENTRADA ROBUSTA
+            # ============================================================
+            if not student_input or not isinstance(student_input, str):
+                logger.error(f"Invalid student_input: {student_input}")
+                return {
+                    "message": "Por favor, ingresá un mensaje válido para continuar la simulación.",
+                    "role": self.simulator_type.value if self.simulator_type else "unknown",
+                    "expects": [],
+                    "metadata": {"error": "invalid_input"}
+                }
+            
+            if student_input.strip() == "":
+                logger.warning(f"Empty student_input for simulator {self.simulator_type}")
+                return {
+                    "message": "Esperaba una respuesta de tu parte. ¿Podrías compartir tu opinión o propuesta?",
+                    "role": self.simulator_type.value if self.simulator_type else "unknown",
+                    "expects": ["respuesta"],
+                    "metadata": {"warning": "empty_input"}
+                }
+            
+            context = context or {}
+            if not isinstance(context, dict):
+                logger.warning(f"Invalid context type {type(context)}, using empty dict")
+                context = {}
+            
+            logger.info(
+                "Simulator processing input",
+                extra={
+                    "flow_id": self.flow_id,
+                    "simulator_type": self.simulator_type.value if self.simulator_type else "unknown",
+                    "input_length": len(student_input),
+                    "session_id": session_id,
+                },
+            )
+            
+            # ============================================================
+            # ROUTING A SIMULADOR ESPECÍFICO CON MANEJO DE ERRORES
+            # ============================================================
+            if self.simulator_type == SimuladorType.PRODUCT_OWNER:
+                return await self._interact_as_product_owner(student_input, context, session_id)
+            elif self.simulator_type == SimuladorType.SCRUM_MASTER:
+                return await self._interact_as_scrum_master(student_input, context, session_id)
+            elif self.simulator_type == SimuladorType.TECH_INTERVIEWER:
+                return await self._interact_as_interviewer(student_input, context, session_id)
+            elif self.simulator_type == SimuladorType.INCIDENT_RESPONDER:
+                return await self._interact_as_incident_responder(student_input, context, session_id)
+            elif self.simulator_type == SimuladorType.DEVSECOPS:
+                return await self._interact_as_devsecops(student_input, context, session_id)
+            elif self.simulator_type == SimuladorType.CLIENT:
+                return await self._interact_as_client(student_input, context, session_id)
+            else:
+                logger.warning(f"Unknown or unimplemented simulator type: {self.simulator_type}")
+                return {
+                    "message": f"El simulador {self.simulator_type} está en desarrollo. Por favor, seleccioná otro simulador.",
+                    "role": self.simulator_type.value if self.simulator_type else "unknown",
+                    "expects": [],
+                    "metadata": {"status": "in_development"}
+                }
+        
+        except Exception as e:
+            logger.error(f"Critical error in simulator interact: {type(e).__name__}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return {
+                "message": "Disculpá, tuve un problema técnico. Por favor, intentá nuevamente o reformulá tu mensaje.",
+                "role": self.simulator_type.value if self.simulator_type else "unknown",
+                "expects": ["retry"],
+                "metadata": {
+                    "error": "critical_error",
+                    "error_type": type(e).__name__,
+                    "error_message": str(e)
+                }
+            }
 
     async def _interact_as_product_owner(
         self,
@@ -428,71 +491,207 @@ Ah, y tiene que estar lista en 2 semanas porque mi cuñado dijo que puede conseg
         """
         try:
             from ..llm.base import LLMMessage, LLMRole
-            from ..models.cognitive_trace import InteractionType
+            from ..models.trace import InteractionType
+
+            # ============================================================
+            # VALIDACIÓN DE PARÁMETROS
+            # ============================================================
+            if not role or not isinstance(role, str):
+                logger.error(f"Invalid role parameter: {role}")
+                role = "Unknown"
+            
+            if not system_prompt or not isinstance(system_prompt, str):
+                logger.error(f"Invalid system_prompt for role {role}")
+                system_prompt = f"You are a {role} in a professional simulation."
+            
+            if not isinstance(competencies, list):
+                logger.warning(f"Invalid competencies type for role {role}: {type(competencies)}")
+                competencies = []
+            
+            if not isinstance(expects, list):
+                logger.warning(f"Invalid expects type for role {role}: {type(expects)}")
+                expects = []
 
             # Construir contexto completo
             context_str = ""
-            if context:
-                context_str = f"\n\nContexto adicional:\n{context}"
+            if context and isinstance(context, dict):
+                try:
+                    context_str = f"\n\nContexto adicional:\n{context}"
+                except Exception as e:
+                    logger.warning(f"Error building context string: {e}")
+                    context_str = ""
 
-            # Construir mensajes: empezar con system prompt
-            messages = [
-                LLMMessage(
-                    role=LLMRole.SYSTEM,
-                    content=f"{system_prompt}{context_str}"
-                )
-            ]
+            # ============================================================
+            # CONSTRUCCIÓN DE MENSAJES CON MANEJO DE ERRORES
+            # ============================================================
+            try:
+                messages = [
+                    LLMMessage(
+                        role=LLMRole.SYSTEM,
+                        content=f"{system_prompt}{context_str}"
+                    )
+                ]
+            except Exception as e:
+                logger.error(f"Error creating system message for role {role}: {e}")
+                # Fallback a mensaje simple
+                messages = [
+                    LLMMessage(role=LLMRole.SYSTEM, content=system_prompt)
+                ]
             
             # ✅ NUEVO: Cargar historial de conversación si hay session_id
+            conversation_history = []
             if session_id and self.trace_repo:
-                conversation_history = self._load_conversation_history(session_id)
-                messages.extend(conversation_history)
-                logger.info(
-                    f"Loaded {len(conversation_history)} messages from conversation history",
-                    extra={"session_id": session_id, "role": role}
-                )
+                try:
+                    conversation_history = self._load_conversation_history(session_id)
+                    messages.extend(conversation_history)
+                    logger.info(
+                        f"Loaded {len(conversation_history)} messages from conversation history for role {role}",
+                        extra={"session_id": session_id, "role": role}
+                    )
+                except Exception as e:
+                    logger.warning(f"Error loading conversation history for session {session_id}: {type(e).__name__}: {e}")
+                    # Continuar sin historial
             
             # Agregar el prompt actual del estudiante
-            messages.append(
-                LLMMessage(
-                    role=LLMRole.USER,
-                    content=student_input
+            try:
+                messages.append(
+                    LLMMessage(
+                        role=LLMRole.USER,
+                        content=student_input
+                    )
                 )
+            except Exception as e:
+                logger.error(f"Error adding user message for role {role}: {e}")
+                raise ValueError(f"Could not process student input: {e}")
+
+            # ============================================================
+            # GENERAR RESPUESTA CON LLM
+            # ============================================================
+            logger.info(
+                "Simulator sending messages to LLM",
+                extra={
+                    "flow_id": self.flow_id,
+                    "role": role,
+                    "session_id": session_id,
+                    "message_count": len(messages),
+                },
             )
+            try:
+                import os
+                simulator_temperature = float(os.getenv("SIMULATOR_TEMPERATURE", "0.7"))
+                simulator_max_tokens = int(os.getenv("SIMULATOR_MAX_TOKENS", "300"))
+                llm_started_at = time.perf_counter()
+                response = await self.llm_provider.generate(
+                    messages=messages,
+                    temperature=simulator_temperature,
+                    max_tokens=simulator_max_tokens,
+                )
+                logger.info(
+                    "Simulator received LLM response",
+                    extra={
+                        "flow_id": self.flow_id,
+                        "role": role,
+                        "session_id": session_id,
+                        "duration_ms": round((time.perf_counter() - llm_started_at) * 1000, 2),
+                        "model": getattr(response, "model", None),
+                        "total_tokens": (getattr(response, "usage", {}) or {}).get("total_tokens"),
+                    },
+                )
+            except AttributeError as e:
+                logger.error(f"LLM provider missing 'generate' method: {type(e).__name__}: {e}")
+                raise RuntimeError(f"LLM provider is not properly configured: {e}")
+            except ValueError as e:
+                logger.error(f"Invalid parameters for LLM generation: {type(e).__name__}: {e}")
+                raise ValueError(f"Invalid LLM parameters: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error calling LLM for role {role}: {type(e).__name__}: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise RuntimeError(f"LLM generation failed: {e}")
 
-            # Generar respuesta
-            logger.info(f"Generando respuesta con LLM para rol: {role}")
-            response = await self.llm_provider.generate(
-                messages=messages,
-                temperature=0.7,  # Creatividad moderada para simuladores
-                max_tokens=500  # Respuestas concisas
-            )
+            # ============================================================
+            # ANALIZAR COMPETENCIAS
+            # ============================================================
+            competency_scores = {}
+            try:
+                competency_scores = self._analyze_competencies(student_input, response.content, competencies)
+            except Exception as e:
+                logger.warning(f"Error analyzing competencies for role {role}: {type(e).__name__}: {e}")
+                # Continuar sin scores de competencias
 
-            # Analizar competencias en la respuesta del estudiante
-            competency_scores = self._analyze_competencies(student_input, response.content, competencies)
+            # ============================================================
+            # CONSTRUIR RESPUESTA FINAL
+            # ============================================================
+            try:
+                role_normalized = role.lower().replace(" ", "_")
+                tokens_used = 0
+                model_name = "unknown"
+                
+                if hasattr(response, 'usage') and isinstance(response.usage, dict):
+                    tokens_used = response.usage.get("total_tokens", 0)
+                if hasattr(response, 'model'):
+                    model_name = response.model
+                
+                return {
+                    "message": response.content if hasattr(response, 'content') else str(response),
+                    "role": role_normalized,
+                    "expects": expects,
+                    "metadata": {
+                        "competencies_evaluated": competencies,
+                        "competency_scores": competency_scores,
+                        "llm_model": model_name,
+                        "tokens_used": tokens_used,
+                        "conversation_history_length": len(conversation_history)
+                    }
+                }
+            except Exception as e:
+                logger.error(f"Error building final response for role {role}: {type(e).__name__}: {e}")
+                # Retornar respuesta mínima
+                return {
+                    "message": response.content if hasattr(response, 'content') else "Response generated successfully",
+                    "role": role.lower().replace(" ", "_"),
+                    "expects": expects,
+                    "metadata": {"competencies_evaluated": competencies}
+                }
 
+        except ValueError as ve:
+            logger.error(f"Validation error in _generate_llm_response for role {role}: {ve}")
             return {
-                "message": response.content,
+                "message": f"[{role}] No pude procesar tu entrada. Por favor, reformulá tu consulta.",
                 "role": role.lower().replace(" ", "_"),
                 "expects": expects,
                 "metadata": {
                     "competencies_evaluated": competencies,
-                    "competency_scores": competency_scores,
-                    "llm_model": response.model,
-                    "tokens_used": response.usage.get("total_tokens", 0)
+                    "error": "validation_error",
+                    "error_message": str(ve)
                 }
             }
-
-        except Exception as e:
-            logger.error(f"Error generando respuesta con LLM: {e}", exc_info=True)
-            # Fallback: respuesta genérica
+        except RuntimeError as re:
+            logger.error(f"Runtime error in _generate_llm_response for role {role}: {re}")
             return {
-                "message": f"[{role}] Ha ocurrido un error. Por favor, reformula tu consulta.",
+                "message": f"[{role}] Ocurrió un problema técnico. Por favor, intentá nuevamente.",
                 "role": role.lower().replace(" ", "_"),
                 "expects": expects,
                 "metadata": {
                     "competencies_evaluated": competencies,
-                    "error": str(e)
+                    "error": "runtime_error",
+                    "error_message": str(re)
+                }
+            }
+        except Exception as e:
+            logger.error(f"Critical error in _generate_llm_response for role {role}: {type(e).__name__}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Fallback: respuesta genérica
+            return {
+                "message": f"[{role}] Ha ocurrido un error inesperado. Por favor, reformulá tu consulta o contactá al soporte técnico.",
+                "role": role.lower().replace(" ", "_"),
+                "expects": expects,
+                "metadata": {
+                    "competencies_evaluated": competencies,
+                    "error": "critical_error",
+                    "error_type": type(e).__name__,
+                    "error_message": str(e)
                 }
             }
 
@@ -581,7 +780,7 @@ Ah, y tiene que estar lista en 2 semanas porque mi cuñado dijo que puede conseg
         
         try:
             from ..llm.base import LLMMessage, LLMRole
-            from ..models.cognitive_trace import InteractionType
+            from ..models.trace import InteractionType
             
             # Recuperar todas las trazas de esta sesión
             db_traces = self.trace_repo.get_by_session(session_id)

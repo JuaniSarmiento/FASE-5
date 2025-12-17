@@ -3,9 +3,14 @@ Router para simuladores profesionales (S-IA-X)
 
 Sprint 3 - HU-EST-009, HU-SYS-006
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+import logging
+import time
+from uuid import uuid4
+
+logger = logging.getLogger(__name__)
 
 from ..deps import get_db, get_session_repository, get_trace_repository, get_llm_provider, get_current_user
 from ..schemas.common import APIResponse
@@ -119,6 +124,7 @@ async def interact_with_simulator(
     session_repo: SessionRepository = Depends(get_session_repository),
     trace_repo: TraceRepository = Depends(get_trace_repository),
     llm_provider: LLMProvider = Depends(get_llm_provider),
+    x_flow_id: Optional[str] = Header(None, alias="X-Flow-Id"),
 ) -> APIResponse[SimulatorInteractionResponse]:
     """
     Procesa una interacción entre el estudiante y un simulador profesional.
@@ -137,110 +143,229 @@ async def interact_with_simulator(
     **HU-EST-009**: Permite al estudiante interactuar con Product Owner simulado
     para desarrollar habilidades de comunicación técnica.
     """
-    # Validar sesión
-    db_session = session_repo.get_by_id(request.session_id)
-    if not db_session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session '{request.session_id}' not found"
+    flow_id = x_flow_id or f"flow_{uuid4()}"
+    started_at = time.perf_counter()
+    try:
+        # ============================================================
+        # VALIDACIÓN DE ENTRADA
+        # ============================================================
+        if not request or not request.session_id:
+            logger.error("Missing or invalid request data")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Request data is required with a valid session_id"
+            )
+        
+        if not request.prompt or request.prompt.strip() == "":
+            logger.warning(f"Empty prompt for session {request.session_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El prompt no puede estar vacío"
+            )
+        
+        logger.info(
+            "HTTP simulator interaction received",
+            extra={
+                "flow_id": flow_id,
+                "session_id": request.session_id,
+                "simulator_type": str(request.simulator_type),
+            },
         )
+        
+        # ============================================================
+        # VALIDAR SESIÓN
+        # ============================================================
+        try:
+            db_session = session_repo.get_by_id(request.session_id)
+        except Exception as e:
+            logger.error(
+                f"Error fetching session {request.session_id}: {type(e).__name__}: {e}",
+                extra={"flow_id": flow_id, "session_id": request.session_id},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al obtener la sesión: {str(e)}"
+            )
+        
+        if not db_session:
+            logger.warning(f"Session not found: {request.session_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session '{request.session_id}' not found"
+            )
 
-    if db_session.status != "active":
+        if db_session.status != "active":
+            logger.warning(f"Session {request.session_id} is not active: {db_session.status}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Session '{request.session_id}' is not active (status: {db_session.status})"
+            )
+
+        # ============================================================
+        # MAPEAR TIPO DE SIMULADOR
+        # ============================================================
+        simulator_type_map = {
+            SimulatorType.PRODUCT_OWNER: AgentSimulatorType.PRODUCT_OWNER,
+            SimulatorType.SCRUM_MASTER: AgentSimulatorType.SCRUM_MASTER,
+            SimulatorType.TECH_INTERVIEWER: AgentSimulatorType.TECH_INTERVIEWER,
+            SimulatorType.INCIDENT_RESPONDER: AgentSimulatorType.INCIDENT_RESPONDER,
+            SimulatorType.CLIENT: AgentSimulatorType.CLIENT,
+            SimulatorType.DEVSECOPS: AgentSimulatorType.DEVSECOPS,
+        }
+
+        if request.simulator_type not in simulator_type_map:
+            logger.error(f"Unknown simulator type: {request.simulator_type}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Simulator type '{request.simulator_type}' is not supported"
+            )
+        
+        agent_simulator_type = simulator_type_map[request.simulator_type]
+
+        # ============================================================
+        # CREAR SIMULADOR CON MANEJO DE ERRORES
+        # ============================================================
+        try:
+            simulator = SimuladorProfesionalAgent(
+                simulator_type=agent_simulator_type,
+                llm_provider=llm_provider,
+                trace_repo=trace_repo,
+                config={"context": request.context or {}, "flow_id": flow_id}
+            )
+        except Exception as e:
+            logger.error(f"Error creating simulator: {type(e).__name__}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al crear el simulador: {str(e)}"
+            )
+
+        # ============================================================
+        # PROCESAR INTERACCIÓN CON MANEJO DE ERRORES
+        # ============================================================
+        try:
+            response = await simulator.interact(
+                student_input=request.prompt,
+                context=request.context,
+                session_id=request.session_id
+            )
+        except ValueError as ve:
+            logger.error(f"Validation error in simulator interaction: {ve}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Error de validación: {str(ve)}"
+            )
+        except Exception as e:
+            logger.error(f"Error in simulator interaction: {type(e).__name__}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al procesar la interacción: {str(e)}"
+            )
+
+        # ============================================================
+        # CAPTURAR TRAZAS N4
+        # ============================================================
+        try:
+            input_trace = CognitiveTrace(
+                session_id=request.session_id,
+                student_id=db_session.student_id,
+                activity_id=db_session.activity_id,
+                trace_level=TraceLevel.N4_COGNITIVO,
+                interaction_type=InteractionType.STUDENT_PROMPT,
+                content=request.prompt,
+                cognitive_state="exploracion",
+                cognitive_intent=f"Interactuar con simulador {request.simulator_type.value}",
+                ai_involvement=0.0,
+                metadata={
+                    "simulator_type": request.simulator_type.value,
+                    "context": request.context or {}
+                }
+            )
+
+            output_trace = CognitiveTrace(
+                session_id=request.session_id,
+                student_id=db_session.student_id,
+                activity_id=db_session.activity_id,
+                trace_level=TraceLevel.N4_COGNITIVO,
+                interaction_type=InteractionType.AI_RESPONSE,
+                content=response.get("message", ""),
+                cognitive_state="reflexion",
+                cognitive_intent=f"Respuesta de simulador {request.simulator_type.value}",
+                ai_involvement=1.0,
+                metadata={
+                    "simulator_type": request.simulator_type.value,
+                    "role": response.get("role"),
+                    "expects": response.get("expects", []),
+                    "competencies_evaluated": response.get("metadata", {}).get("competencies_evaluated", [])
+                }
+            )
+
+            # Persistir trazas
+            db_input_trace = trace_repo.create(input_trace)
+            db_output_trace = trace_repo.create(output_trace)
+            
+        except Exception as e:
+            logger.error(f"Error creating traces (non-critical): {type(e).__name__}: {e}")
+            # Continuar sin trazas si falla (no es crítico)
+            db_input_trace = type('obj', (object,), {'id': 'trace_error_input'})()
+            db_output_trace = type('obj', (object,), {'id': 'trace_error_output'})()
+
+        # ============================================================
+        # PREPARAR RESPUESTA
+        # ============================================================
+        try:
+            simulator_response = SimulatorInteractionResponse(
+                interaction_id=f"{db_input_trace.id}_{db_output_trace.id}",
+                simulator_type=request.simulator_type,
+                response=response.get("message", "Error: No response generated"),
+                role=response.get("role", request.simulator_type.value),
+                expects=response.get("expects", []),
+                competencies_evaluated=response.get("metadata", {}).get("competencies_evaluated", []),
+                trace_id_input=db_input_trace.id,
+                trace_id_output=db_output_trace.id,
+                metadata={
+                    "session_id": request.session_id,
+                    "simulator_context": request.context or {},
+                    "error": response.get("metadata", {}).get("error") if "error" in response.get("metadata", {}) else None
+                }
+            )
+
+            logger.info(
+                "HTTP simulator interaction completed",
+                extra={
+                    "flow_id": flow_id,
+                    "session_id": request.session_id,
+                    "simulator_type": str(request.simulator_type),
+                    "duration_ms": round((time.perf_counter() - started_at) * 1000, 2),
+                },
+            )
+            return APIResponse(
+                success=True,
+                data=simulator_response,
+                message=f"Interacción procesada con simulador {request.simulator_type.value}"
+            )
+        
+        except Exception as e:
+            logger.error(f"Error building simulator response: {type(e).__name__}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al construir la respuesta: {str(e)}"
+            )
+    
+    except HTTPException:
+        # Re-raise HTTPExceptions without wrapping
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected critical error in interact_with_simulator: {type(e).__name__}: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Session '{request.session_id}' is not active (status: {db_session.status})"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error crítico inesperado: {str(e)}"
         )
-
-    # Mapear tipo de simulador
-    simulator_type_map = {
-        SimulatorType.PRODUCT_OWNER: AgentSimulatorType.PRODUCT_OWNER,
-        SimulatorType.SCRUM_MASTER: AgentSimulatorType.SCRUM_MASTER,
-        SimulatorType.TECH_INTERVIEWER: AgentSimulatorType.TECH_INTERVIEWER,
-        SimulatorType.INCIDENT_RESPONDER: AgentSimulatorType.INCIDENT_RESPONDER,
-        SimulatorType.CLIENT: AgentSimulatorType.CLIENT,
-        SimulatorType.DEVSECOPS: AgentSimulatorType.DEVSECOPS,
-    }
-
-    agent_simulator_type = simulator_type_map[request.simulator_type]
-
-    # Crear simulador (SPRINT 4: con LLM provider inyectado)
-    # ✅ NUEVO: Ahora también inyectamos trace_repo para memoria de conversación
-    simulator = SimuladorProfesionalAgent(
-        simulator_type=agent_simulator_type,
-        llm_provider=llm_provider,  # SPRINT 4: Usa Gemini/OpenAI configurado en .env
-        trace_repo=trace_repo,  # ✅ Para cargar historial de conversación
-        config={"context": request.context or {}}
-    )
-
-    # Procesar interacción
-    # ✅ NUEVO: Ahora pasamos session_id para habilitar memoria de conversación
-    response = await simulator.interact(
-        student_input=request.prompt,
-        context=request.context,
-        session_id=request.session_id
-    )
-
-    # Capturar traza N4 de input
-    input_trace = CognitiveTrace(
-        session_id=request.session_id,
-        student_id=db_session.student_id,
-        activity_id=db_session.activity_id,
-        trace_level=TraceLevel.N4_COGNITIVO,
-        interaction_type=InteractionType.STUDENT_PROMPT,
-        content=request.prompt,
-        cognitive_state="exploracion",
-        cognitive_intent=f"Interactuar con simulador {request.simulator_type.value}",
-        ai_involvement=0.0,  # Es el estudiante quien habla
-        metadata={
-            "simulator_type": request.simulator_type.value,
-            "context": request.context or {}
-        }
-    )
-
-    # Capturar traza N4 de output
-    output_trace = CognitiveTrace(
-        session_id=request.session_id,
-        student_id=db_session.student_id,
-        activity_id=db_session.activity_id,
-        trace_level=TraceLevel.N4_COGNITIVO,
-        interaction_type=InteractionType.AI_RESPONSE,
-        content=response["message"],
-        cognitive_state="reflexion",
-        cognitive_intent=f"Respuesta de simulador {request.simulator_type.value}",
-        ai_involvement=1.0,  # Es el simulador quien responde
-        metadata={
-            "simulator_type": request.simulator_type.value,
-            "role": response.get("role"),
-            "expects": response.get("expects", []),
-            "competencies_evaluated": response.get("metadata", {}).get("competencies_evaluated", [])
-        }
-    )
-
-    # Persistir trazas
-    db_input_trace = trace_repo.create(input_trace)
-    db_output_trace = trace_repo.create(output_trace)
-
-    # Preparar respuesta
-    simulator_response = SimulatorInteractionResponse(
-        interaction_id=f"{db_input_trace.id}_{db_output_trace.id}",
-        simulator_type=request.simulator_type,
-        response=response["message"],
-        role=response.get("role", request.simulator_type.value),
-        expects=response.get("expects", []),
-        competencies_evaluated=response.get("metadata", {}).get("competencies_evaluated", []),
-        trace_id_input=db_input_trace.id,
-        trace_id_output=db_output_trace.id,
-        metadata={
-            "session_id": request.session_id,
-            "simulator_context": request.context or {}
-        }
-    )
-
-    return APIResponse(
-        success=True,
-        data=simulator_response,
-        message=f"Interacción procesada con simulador {request.simulator_type.value}"
-    )
 
 
 @router.get(

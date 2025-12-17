@@ -45,16 +45,20 @@ services:
       # LLM Provider - Ollama (contenedor separado)
       - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-phi3}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral:7b-instruct}
       - OLLAMA_TEMPERATURE=${OLLAMA_TEMPERATURE:-0.7}
-      - OLLAMA_TIMEOUT=${OLLAMA_TIMEOUT:-120}
+      - OLLAMA_TIMEOUT=${OLLAMA_TIMEOUT:-180}
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-24h}
+      - OLLAMA_NUM_CTX=${OLLAMA_NUM_CTX:-}
+      - OLLAMA_NUM_THREAD=${OLLAMA_NUM_THREAD:-}
+      - OLLAMA_NUM_GPU=${OLLAMA_NUM_GPU:-}
 
       # Security (REQUIRED: Set these in .env file, no defaults for security)
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required - generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
       - JWT_ALGORITHM=HS256
       - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
       - JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
-      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required - generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
 
       # Application
       - ENVIRONMENT=development
@@ -70,7 +74,7 @@ services:
       redis:
         condition: service_healthy
       ollama:
-        condition: service_healthy
+        condition: service_started
 
     volumes:
       # Montar código en development para hot-reload (comentar en producción)
@@ -249,7 +253,9 @@ services:
       - "11434:11434"
     environment:
       # Keep model loaded in memory permanently for instant responses
-      - OLLAMA_KEEP_ALIVE=-1
+      - OLLAMA_HOST=0.0.0.0
+      # NOTE: Ollama server env expects a Go duration string; keep it separate from API client keep_alive.
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_SERVER_KEEP_ALIVE:-24h}
     volumes:
       # Volumen persistente para modelos de Ollama
       - ollama_data:/root/.ollama

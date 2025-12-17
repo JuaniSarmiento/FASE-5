@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import CreateSessionModal from '../components/CreateSessionModal';
 import TraceabilityViewer from '../components/TraceabilityViewer';
 import RiskAnalysisViewer from '../components/RiskAnalysisViewer';
+import RiskMonitorPanel from '../components/RiskMonitorPanel';
 // FIX Cortez24 DEFECTO 4.x: Remove unused imports (RefreshCw, MessageSquare, BarChart3)
 import {
   Send,
@@ -18,7 +19,9 @@ import {
   Plus,
   Clock,
   GitBranch,
-  Shield
+  Shield,
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
 
 export default function TutorPage() {
@@ -37,12 +40,25 @@ export default function TutorPage() {
   const [lastTraceId, setLastTraceId] = useState<string | null>(null);
   const [isLoadingTraceability, setIsLoadingTraceability] = useState(false);
   const [isLoadingRisks, setIsLoadingRisks] = useState(false);
+  const [showRiskPanel, setShowRiskPanel] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Auto-refresh risk analysis when messages change
+  useEffect(() => {
+    if (session && messages.length > 1 && showRiskPanel) {
+      // Debounce: only update after 2 seconds of no new messages
+      const timer = setTimeout(() => {
+        handleAnalyzeRisks(true); // Silent update
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, session?.id, showRiskPanel]);
 
   // FIX Cortez22 DEFECTO 4.2: Added isMounted check to prevent memory leaks
   useEffect(() => {
@@ -165,13 +181,13 @@ Soy tu tutor de IA, diseñado para ayudarte a aprender programación de manera e
 
       setMessages(prev => [...prev, aiMessage]);
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      const err = error as { error?: { message?: string }; message?: string };
       const errorMessage: ChatMessage = {
         id: 'error-' + Date.now(),
         role: 'assistant',
         content: `Lo siento, ocurrió un error al procesar tu mensaje. Por favor, intenta de nuevo.
 
-*Error: ${err.response?.data?.message || err.message || 'Error desconocido'}*`,
+*Error: ${err.error?.message || err.message || 'Error desconocido'}*`,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -212,17 +228,19 @@ Soy tu tutor de IA, diseñado para ayudarte a aprender programación de manera e
       if (import.meta.env.DEV) {
         console.error('Error fetching traceability:', error);
       }
-      const err = error as { response?: { data?: { message?: string } }; message?: string };
-      const errorMsg = err.response?.data?.message || err.message || 'Error desconocido';
+      const err = error as { error?: { message?: string }; message?: string };
+      const errorMsg = err.error?.message || err.message || 'Error desconocido';
       showToast(`Error al obtener trazabilidad: ${errorMsg}`, 'error');
     } finally {
       setIsLoadingTraceability(false);
     }
   };
 
-  const handleAnalyzeRisks = async () => {
+  const handleAnalyzeRisks = async (silent: boolean = false) => {
     if (!session) {
-      showToast('No hay sesión activa. Inicia una conversación primero.', 'warning');
+      if (!silent) {
+        showToast('No hay sesión activa. Inicia una conversación primero.', 'warning');
+      }
       return;
     }
 
@@ -238,20 +256,24 @@ Soy tu tutor de IA, diseñado para ayudarte a aprender programación de manera e
         top_risks: data.top_risks as RiskAnalysis5D['top_risks'],
         recommendations: data.recommendations
       });
-      setShowRiskAnalysis(true);
-    } catch (error: unknown) {
-      if (import.meta.env.DEV) {
-        console.error('Error analyzing risks:', error);
+      if (!silent) {
+        setShowRiskAnalysis(true);
       }
-      const err = error as { response?: { data?: { message?: string } }; message?: string; code?: string };
-      const errorMsg = err.response?.data?.message || err.message || 'Error desconocido';
+    } catch (error: unknown) {
+      if (!silent) {
+        if (import.meta.env.DEV) {
+          console.error('Error analyzing risks:', error);
+        }
+        const err = error as { error?: { message?: string }; message?: string; code?: string };
+        const errorMsg = err.error?.message || err.message || 'Error desconocido';
 
-      if (err.code === 'ECONNABORTED') {
-        showToast('El análisis está tomando demasiado tiempo. Verifica que Ollama esté corriendo.', 'error', 8000);
-      } else if (err.message === 'Network Error') {
-        showToast('Error de conexión. Verifica que el backend y Ollama estén activos.', 'error', 8000);
-      } else {
-        showToast(`Error al analizar riesgos: ${errorMsg}`, 'error');
+        if (err.code === 'ECONNABORTED') {
+          showToast('El análisis está tomando demasiado tiempo. Verifica que Ollama esté corriendo.', 'error', 8000);
+        } else if (err.message === 'Network Error') {
+          showToast('Error de conexión. Verifica que el backend y Ollama estén activos.', 'error', 8000);
+        } else {
+          showToast(`Error al analizar riesgos: ${errorMsg}`, 'error');
+        }
       }
     } finally {
       setIsLoadingRisks(false);
@@ -259,7 +281,7 @@ Soy tu tutor de IA, diseñado para ayudarte a aprender programación de manera e
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col animate-fadeIn">
+    <div className="h-[calc(100vh-8rem)] flex gap-4 animate-fadeIn">
       {/* Modals */}
       <CreateSessionModal
         isOpen={showCreateModal}
@@ -267,60 +289,69 @@ Soy tu tutor de IA, diseñado para ayudarte a aprender programación de manera e
         onSessionCreated={handleNewSession}
       />
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-            <Brain className="w-6 h-6 text-white" />
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+              <Brain className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-[var(--text-primary)]">Tutor IA</h1>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Aprende con guía cognitiva personalizada
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">Tutor IA</h1>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Aprende con guía cognitiva personalizada
-            </p>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAnalyzeTraceability}
+              disabled={!lastTraceId || isLoadingTraceability}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Ver trazabilidad N4 de la última interacción"
+            >
+              {isLoadingTraceability ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <GitBranch className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">
+                {isLoadingTraceability ? 'Cargando...' : 'Trazabilidad'}
+              </span>
+            </button>
+            <button
+              onClick={() => handleAnalyzeRisks(false)}
+              disabled={!session || isLoadingRisks}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Ver análisis detallado de riesgos 5D"
+            >
+              {isLoadingRisks ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Shield className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">
+                {isLoadingRisks ? 'Analizando...' : 'Ver Reporte'}
+              </span>
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)] transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Nueva Sesión</span>
+            </button>
+            <button
+              onClick={() => setShowRiskPanel(!showRiskPanel)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)] transition-all"
+              title={showRiskPanel ? 'Ocultar panel de riesgos' : 'Mostrar panel de riesgos'}
+            >
+              {showRiskPanel ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            </button>
           </div>
         </div>
-        
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleAnalyzeTraceability}
-            disabled={!lastTraceId || isLoadingTraceability}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Ver trazabilidad N4 de la última interacción"
-          >
-            {isLoadingTraceability ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <GitBranch className="w-4 h-4" />
-            )}
-            <span className="hidden sm:inline">
-              {isLoadingTraceability ? 'Cargando...' : 'Trazabilidad'}
-            </span>
-          </button>
-          <button
-            onClick={handleAnalyzeRisks}
-            disabled={!session || isLoadingRisks}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Analizar riesgos 5D de la sesión"
-          >
-            {isLoadingRisks ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Shield className="w-4 h-4" />
-            )}
-            <span className="hidden sm:inline">
-              {isLoadingRisks ? 'Analizando...' : 'Riesgos 5D'}
-            </span>
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)] transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Nueva Sesión</span>
-          </button>
-        </div>
-      </div>
 
       {/* Traceability Modal */}
       {showTraceability && traceabilityData && (
@@ -498,6 +529,17 @@ Soy tu tutor de IA, diseñado para ayudarte a aprender programación de manera e
               </button>
             ))}
           </div>
+        </div>
+      )}
+      </div>
+
+      {/* Risk Monitor Panel */}
+      {showRiskPanel && (
+        <div className="w-80 flex-shrink-0">
+          <RiskMonitorPanel
+            currentRiskLevel={riskAnalysisData?.risk_level || 'info'}
+            dimensions={riskAnalysisData?.dimensions}
+          />
         </div>
       )}
     </div>

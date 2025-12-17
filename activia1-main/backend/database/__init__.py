@@ -8,10 +8,19 @@ Provides:
 - ORM models (SessionDB, CognitiveTraceDB, etc.)
 - Repository pattern implementations
 - Transaction management utilities
+- Background task session management (production pattern)
 """
 from .config import DatabaseConfig, get_db_session, init_database, get_db_config
 from .base import Base
 from .transaction import transaction, transactional, TransactionManager
+
+# Background task session management (NEW - Production Pattern)
+from .background_session import (
+    get_background_db_session,
+    create_background_db_session,
+    with_background_db_session,
+    BackgroundUnitOfWork,
+)
 
 # ORM Models
 from .models import (
@@ -67,6 +76,11 @@ __all__ = [
     "transaction",
     "transactional",
     "TransactionManager",
+    # Background task session management (NEW)
+    "get_background_db_session",
+    "create_background_db_session",
+    "with_background_db_session",
+    "BackgroundUnitOfWork",
     # ORM Models
     "SessionDB",
     "CognitiveTraceDB",

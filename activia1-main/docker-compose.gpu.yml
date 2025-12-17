@@ -1,0 +1,79 @@
+# ============================================================================
+# GPU Override para Ollama - Configuración de Producción
+# ============================================================================
+# Optimizado para NVIDIA RTX 3050 6GB VRAM
+# 
+# PROBLEMA RESUELTO: Forzar offloading completo a GPU (33/33 capas)
+# 
+# Usage (Windows / Docker Desktop + WSL2):
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+#
+# Requirements:
+# - NVIDIA GPU + drivers >= 525.60.13
+# - Docker Desktop WSL2 engine con GPU support
+# - NVIDIA Container Toolkit (incluido en Docker Desktop 4.16+)
+# ============================================================================
+
+services:
+  ollama:
+    # ========================================================================
+    # GPU Runtime Configuration - Nivel Producción
+    # ========================================================================
+    deploy:
+      resources:
+        # CRÍTICO: Reservar recursos suficientes para evitar OOM
+        limits:
+          memory: 12G  # Ollama + modelo + context buffer
+          cpus: '6.0'  # CPU threads para procesamiento paralelo
+        reservations:
+          memory: 4G   # Mínimo garantizado
+          cpus: '2.0'
+          # GPU allocation - ALL GPUs disponibles
+          devices:
+            - driver: nvidia
+              count: all  # Todas las GPUs (o count: 1 para una sola GPU)
+              capabilities: [gpu, compute, utility]
+    
+    # ========================================================================
+    # Environment Variables - GPU Offloading Configuration
+    # ========================================================================
+    environment:
+      # NVIDIA Runtime
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      
+      # CRÍTICO: Forzar número de capas en GPU
+      # Para Mistral-7B (33 capas): forzar ALL layers a GPU
+      - OLLAMA_NUM_GPU=99  # Valor alto fuerza máximo offloading
+      
+      # VRAM Management - Optimizado para RTX 3050 6GB
+      - OLLAMA_GPU_MEMORY_FRACTION=0.85  # Usar 85% de VRAM disponible (~5.1GB)
+      - OLLAMA_MAX_LOADED_MODELS=1       # Un solo modelo en memoria
+      
+      # Performance Tuning
+      - OLLAMA_FLASH_ATTENTION=1         # Optimización de atención (reduce VRAM)
+      - OLLAMA_NUM_PARALLEL=1            # Requests concurrentes (1 = secuencial)
+      - OLLAMA_MAX_QUEUE=4               # Cola de requests
+      
+      # Context Window - Ajustado para no exceder VRAM
+      - OLLAMA_CONTEXT_LENGTH=4096       # 4K tokens (balance rendimiento/memoria)
+      - OLLAMA_NUM_THREAD=6              # Threads CPU para inferencia
+      
+      # Debugging GPU
+      - CUDA_VISIBLE_DEVICES=0           # GPU index (0 = primera GPU)
+      - OLLAMA_DEBUG=1                   # Habilitar logs detallados
+      - OLLAMA_LLM_LIBRARY=cuda          # Forzar backend CUDA
+
+  # ========================================================================
+  # API Backend - Variables relacionadas con Ollama
+  # ========================================================================
+  api:
+    environment:
+      # Client-side options enviadas en cada /api/chat request
+      - OLLAMA_NUM_CTX=4096              # Debe coincidir con OLLAMA_CONTEXT_LENGTH
+      - OLLAMA_NUM_THREAD=6              # Threads para procesamiento
+      - OLLAMA_NUM_GPU=99                # Forzar GPU offloading
+      - OLLAMA_TEMPERATURE=0.7
+      - OLLAMA_TOP_P=0.9
+      - OLLAMA_TOP_K=40
+      - OLLAMA_REPEAT_PENALTY=1.1

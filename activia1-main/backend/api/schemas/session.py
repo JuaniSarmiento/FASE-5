@@ -12,7 +12,7 @@ from .enums import SessionMode, SessionStatus, SimulatorType
 class SessionCreate(BaseModel):
     """Request para crear una nueva sesión"""
 
-    student_id: str = Field(..., min_length=1, max_length=255, description="ID del estudiante")
+    student_id: Any = Field(..., description="ID del estudiante")
     activity_id: str = Field(..., min_length=1, max_length=255, description="ID de la actividad")
     mode: SessionMode = Field(..., description="Modo de interacción: TUTOR, EVALUATOR, SIMULATOR, etc.")
     simulator_type: Optional[str] = Field(
@@ -20,6 +20,24 @@ class SessionCreate(BaseModel):
         max_length=50,
         description="Tipo de simulador cuando mode=SIMULATOR: product_owner, scrum_master, tech_interviewer, incident_responder, client, devsecops"
     )
+
+    @model_validator(mode='before')
+    def coerce_student_id(cls, values):
+        """
+        Coerce numeric or non-string `student_id` values to string before validation.
+        This makes the API more forgiving when clients send integers (e.g. 1) instead
+        of string identifiers.
+        """
+        # `values` can be a mapping with raw input data
+        if isinstance(values, dict):
+            sid = values.get('student_id')
+            if sid is not None and not isinstance(sid, str):
+                # Convert ints, UUID objects, etc. to string
+                try:
+                    values['student_id'] = str(sid)
+                except Exception:
+                    pass
+        return values
 
     @model_validator(mode='after')
     def validate_simulator_type_required(self) -> 'SessionCreate':
@@ -29,6 +47,17 @@ class SessionCreate(BaseModel):
         Raises:
             ValueError: If mode is SIMULATOR but simulator_type is missing or invalid.
         """
+        # Ensure student_id is a string and respects length constraints
+        if self.student_id is None:
+            raise ValueError("student_id is required")
+        if not isinstance(self.student_id, str):
+            try:
+                self.student_id = str(self.student_id)
+            except Exception:
+                raise ValueError("student_id must be convertible to string")
+        if len(self.student_id) < 1 or len(self.student_id) > 255:
+            raise ValueError("student_id must be between 1 and 255 characters")
+
         # Check if mode is SIMULATOR
         if self.mode == SessionMode.SIMULATOR:
             # simulator_type is required for SIMULATOR mode

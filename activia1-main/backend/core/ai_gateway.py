@@ -23,6 +23,8 @@ from typing import Optional, Dict, Any, List, Protocol, runtime_checkable
 from datetime import datetime
 import uuid
 import logging
+import time
+import asyncio
 
 from .cognitive_engine import CognitiveReasoningEngine, AgentMode
 from ..models.trace import CognitiveTrace, TraceLevel, InteractionType, TraceSequence
@@ -252,7 +254,8 @@ class AIGateway:
         self,
         session_id: str,
         prompt: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
+        flow_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Procesa una interacción del estudiante a través del gateway (STATELESS)
@@ -278,18 +281,43 @@ class AIGateway:
         Raises:
             ValueError: Si la entrada no cumple con los requisitos de validación
         """
+        flow_id = flow_id or f"flow_{uuid.uuid4()}"
+        flow_started_at = time.perf_counter()
+        logger.info(
+            "Interaction flow started",
+            extra={
+                "flow_id": flow_id,
+                "session_id": session_id,
+                "prompt_preview": prompt[:160],
+                "context_keys": sorted((context or {}).keys()) if context else [],
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
         # ✅ VALIDACIÓN: Validar entrada antes de procesar
         self._validate_interaction_input(session_id, prompt, context)
-        
+
         # ✅ GOBERNANZA: Filtrar PII del prompt antes de procesarlo
         sanitized_prompt, pii_detected = self.governance_agent.sanitize_prompt(prompt)
         if pii_detected:
             logger.warning(
-                f"PII detectado y removido del prompt",
-                extra={"session_id": session_id, "original_length": len(prompt)}
+                "PII detectado y removido del prompt",
+                extra={
+                    "session_id": session_id,
+                    "original_length": len(prompt),
+                    "flow_id": flow_id
+                }
             )
-            # Usar el prompt sanitizado para el resto del procesamiento
             prompt = sanitized_prompt
+            logger.info(
+                "Prompt sanitized after PII detection",
+                extra={
+                    "flow_id": flow_id,
+                    "session_id": session_id,
+                    "pii_detected": True,
+                    "sanitized_length": len(prompt)
+                }
+            )
 
         # ✅ STATELESS: Obtener sesión desde BD (no desde self.active_sessions)
         if self.session_repo is not None:
@@ -300,19 +328,44 @@ class AIGateway:
             student_id = db_session.student_id
             activity_id = db_session.activity_id
             current_mode = AgentMode(db_session.mode.upper())
+            logger.info(
+                "Session context loaded",
+                extra={
+                    "flow_id": flow_id,
+                    "session_id": session_id,
+                    "student_id": student_id,
+                    "activity_id": activity_id,
+                    "agent_mode": current_mode.value
+                }
+            )
         else:
-            # Backward compatibility: Si no hay repo, fallar limpiamente
-            raise ValueError(f"Session repo no disponible - no se puede procesar interacción")
+            raise ValueError("Session repo no disponible - no se puede procesar interacción")
 
         # C2: Ingesta y Comprensión de Prompt (IPC)
         classification = self.cognitive_engine.classify_prompt(
             prompt,
             context or {}
         )
+        logger.info(
+            "Prompt classified",
+            extra={
+                "session_id": session_id,
+                "student_id": student_id,
+                "classification": classification,
+                "flow_id": flow_id
+            }
+        )
 
         # C4: Gobernanza - verificar si debe bloquearse
-        should_block, block_reason = self.cognitive_engine.should_block_response(
-            classification
+        should_block, block_reason = self.cognitive_engine.should_block_response(classification)
+        logger.info(
+            "Governance decision evaluated",
+            extra={
+                "flow_id": flow_id,
+                "session_id": session_id,
+                "should_block": should_block,
+                "block_reason": block_reason
+            }
         )
 
         # C6: Registrar traza de entrada (N3/N4)
@@ -354,7 +407,8 @@ class AIGateway:
                 dimension=RiskDimension.COGNITIVE,
                 description="Delegación total detectada en el prompt",
                 evidence=[prompt],
-                trace_ids=[input_trace.id]
+                trace_ids=[input_trace.id],
+                flow_id=flow_id
             )
 
             # ✅ HIGH-01: Record Prometheus metrics for governance block
@@ -371,6 +425,16 @@ class AIGateway:
                     session_id=session_id
                 )
 
+            logger.info(
+                "Interaction flow completed",
+                extra={
+                    "flow_id": flow_id,
+                    "session_id": session_id,
+                    "agent_mode": current_mode.value,
+                    "outcome": "blocked",
+                    "duration_ms": round((time.perf_counter() - flow_started_at) * 1000, 2)
+                }
+            )
             return response
 
         # C3: Generar estrategia pedagógica
@@ -380,25 +444,57 @@ class AIGateway:
             classification,
             student_history
         )
+        # Log strategy generation
+        logger.info(
+            "Pedagogical strategy generated",
+            extra={
+                "session_id": session_id,
+                "student_id": student_id,
+                "strategy": strategy,
+                "flow_id": flow_id
+            }
+        )
 
         # C5: Orquestación - delegar al submodelo apropiado
+        logger.info(
+            "Orchestrating to agent",
+            extra={
+                "session_id": session_id,
+                "agent": current_mode.value,
+                "prompt_preview": prompt[:200],
+                "flow_id": flow_id
+            }
+        )
+
+        agent_started_at = time.perf_counter()
         if current_mode == AgentMode.TUTOR:
             response = await self._process_tutor_mode(
-                session_id, prompt, strategy, classification
+                session_id, prompt, strategy, classification, flow_id=flow_id
             )
         elif current_mode == AgentMode.SIMULATOR:
             # FIX Cortez22 DEFECTO 1.1: Add await for async method
             response = await self._process_simulator_mode(
-                session_id, prompt, strategy, classification
+                session_id, prompt, strategy, classification, flow_id=flow_id
             )
         elif current_mode == AgentMode.EVALUATOR:
             # FIX Cortez22 DEFECTO 1.1: Add await for async method
             response = await self._process_evaluator_mode(
-                session_id, prompt, strategy, classification
+                session_id, prompt, strategy, classification, flow_id=flow_id
             )
         else:
             # FIX Cortez22 DEFECTO 1.8: Use "response" not "message"
             response = {"response": "Modo no implementado", "metadata": {}}
+        agent_duration_ms = round((time.perf_counter() - agent_started_at) * 1000, 2)
+        logger.info(
+            "Agent response generated",
+            extra={
+                "flow_id": flow_id,
+                "session_id": session_id,
+                "agent_mode": current_mode.value,
+                "from_cache": response.get("metadata", {}).get("from_cache"),
+                "duration_ms": agent_duration_ms
+            }
+        )
 
         # Registrar respuesta en trazas
         response_trace = self._create_trace(
@@ -414,7 +510,13 @@ class AIGateway:
         self._persist_trace(response_trace)
 
         # Análisis de riesgo en paralelo (AR-IA)
-        self._analyze_risks_async(session_id, input_trace, response_trace, classification)
+        self._run_risk_analysis_background(
+            session_id,
+            input_trace,
+            response_trace,
+            classification,
+            flow_id
+        )
 
         # ✅ HIGH-01: Record Prometheus metrics for successful interaction
         metrics = _get_metrics()
@@ -430,7 +532,101 @@ class AIGateway:
             if cognitive_state:
                 metrics.record_cognitive_state(cognitive_state.value if hasattr(cognitive_state, 'value') else str(cognitive_state))
 
+        logger.info(
+            "Interaction flow completed",
+            extra={
+                "flow_id": flow_id,
+                "session_id": session_id,
+                "agent_mode": current_mode.value,
+                "outcome": "success",
+                "duration_ms": round((time.perf_counter() - flow_started_at) * 1000, 2)
+            }
+        )
         return response
+
+    def _run_risk_analysis_background(
+        self,
+        session_id: str,
+        input_trace: CognitiveTrace,
+        response_trace: CognitiveTrace,
+        classification: Dict[str, Any],
+        flow_id: Optional[str]
+    ) -> None:
+        """Ejecuta el análisis de riesgo en background para liberar la respuesta principal."""
+        if self.risk_repo is None:
+            # Sin repositorio no podemos persistir riesgos (compatibilidad/backward)
+            self._analyze_risks_async(session_id, input_trace, response_trace, classification, flow_id)
+            return
+
+        logger.info(
+            "Scheduling risk analysis task",
+            extra={
+                "flow_id": flow_id,
+                "session_id": session_id,
+                "input_trace_id": input_trace.id,
+                "response_trace_id": response_trace.id
+            }
+        )
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # Entorno síncrono (por ejemplo, tests) => ejecutar inline para conservar comportamiento
+            self._analyze_risks_async(session_id, input_trace, response_trace, classification, flow_id)
+            return
+
+        def _analyze_with_fresh_db_session() -> None:
+            """Run risk analysis using a brand-new DB session (safe for background threads)."""
+            try:
+                from ..database import get_db_session
+                from ..database.repositories import RiskRepository
+            except Exception:
+                logger.error(
+                    "Failed to import database helpers for background risk analysis",
+                    exc_info=True,
+                    extra={"flow_id": flow_id, "session_id": session_id}
+                )
+                return
+
+            with get_db_session() as db_session:
+                risk_repo = RiskRepository(db_session)
+                self._analyze_risks_async(
+                    session_id,
+                    input_trace,
+                    response_trace,
+                    classification,
+                    flow_id,
+                    risk_repo_override=risk_repo,
+                )
+
+        async def _async_task():
+            started_at = time.perf_counter()
+            try:
+                await asyncio.to_thread(
+                    _analyze_with_fresh_db_session
+                )
+            except Exception:
+                logger.error(
+                    "Risk analysis task failed",
+                    exc_info=True,
+                    extra={
+                        "flow_id": flow_id,
+                        "session_id": session_id,
+                        "input_trace_id": input_trace.id,
+                        "response_trace_id": response_trace.id
+                    }
+                )
+            else:
+                logger.info(
+                    "Risk analysis completed asynchronously",
+                    extra={
+                        "flow_id": flow_id,
+                        "session_id": session_id,
+                        "duration_ms": round((time.perf_counter() - started_at) * 1000, 2)
+                    }
+                )
+
+        loop.create_task(_async_task())
 
     def _generate_blocked_response(
         self,
@@ -473,7 +669,8 @@ Esto no es una limitación arbitraria: el objetivo es que desarrolles tu capacid
         session_id: str,
         prompt: str,
         strategy: Dict[str, Any],
-        classification: Dict[str, Any]
+        classification: Dict[str, Any],
+        flow_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Procesa la interacción en modo T-IA-Cog (Tutor)
@@ -488,8 +685,15 @@ Esto no es una limitación arbitraria: el objetivo es que desarrolles tu capacid
         """
         response_type = strategy.get("response_type", "unknown")
         
-        # Log para debugging
-        logger.info(f"Processing tutor mode - response_type: '{response_type}'")
+        logger.info(
+            "Processing tutor mode",
+            extra={
+                "session_id": session_id,
+                "flow_id": flow_id,
+                "response_type": response_type,
+                "strategy_keys": sorted(strategy.keys()) if isinstance(strategy, dict) else []
+            }
+        )
 
         # Preparar contexto para cache key
         cache_context = {
@@ -513,22 +717,30 @@ Esto no es una limitación arbitraria: el objetivo es que desarrolles tu capacid
                 extra={
                     "session_id": session_id,
                     "response_type": response_type,
-                    "prompt_preview": prompt[:50]
+                    "prompt_preview": prompt[:50],
+                    "flow_id": flow_id
                 }
             )
             message = cached_response
         else:
             # Cache MISS - generar respuesta nueva
             if response_type == "socratic_questioning":
-                message = await self._generate_socratic_response(prompt, strategy, session_id)
+                message = await self._generate_socratic_response(prompt, strategy, session_id, flow_id=flow_id)
             elif response_type == "conceptual_explanation":
-                message = await self._generate_conceptual_explanation(prompt, strategy, session_id)
+                message = await self._generate_conceptual_explanation(prompt, strategy, session_id, flow_id=flow_id)
             elif response_type == "guided_hints":
-                message = await self._generate_guided_hints(prompt, strategy, session_id)
+                message = await self._generate_guided_hints(prompt, strategy, session_id, flow_id=flow_id)
             else:
                 # Fallback: usar explicación conceptual para casos no clasificados
-                logger.warning(f"Unknown response_type '{response_type}', using conceptual_explanation")
-                message = await self._generate_conceptual_explanation(prompt, strategy, session_id)
+                logger.warning(
+                    "Unknown response_type received, using conceptual_explanation",
+                    extra={
+                        "session_id": session_id,
+                        "flow_id": flow_id,
+                        "response_type": response_type
+                    }
+                )
+                message = await self._generate_conceptual_explanation(prompt, strategy, session_id, flow_id=flow_id)
 
             # Guardar en cache para futuras solicitudes idénticas
             if self.cache is not None:
@@ -550,7 +762,13 @@ Esto no es una limitación arbitraria: el objetivo es que desarrolles tu capacid
             }
         }
 
-    async def _generate_socratic_response(self, prompt: str, strategy: Dict[str, Any], session_id: str = None) -> str:
+    async def _generate_socratic_response(
+        self,
+        prompt: str,
+        strategy: Dict[str, Any],
+        session_id: str = None,
+        flow_id: Optional[str] = None
+    ) -> str:
         """✅ Genera respuesta socrática con memoria de conversación"""
         # Recuperar historial de conversación si hay session_id
         conversation_history = []
@@ -585,14 +803,51 @@ Sé breve y preciso. Máximo 4-5 preguntas."""
         )
         
         try:
+            # Log messages sent to LLM (preview)
+            logger.info(
+                "Sending messages to LLM (socratic)",
+                extra={
+                    "session_id": session_id,
+                    "messages_count": len(messages),
+                    "messages_preview": [m.content[:200] for m in messages],
+                    "flow_id": flow_id
+                }
+            )
+
+            llm_started_at = time.perf_counter()
             response = await self.llm.generate(messages, max_tokens=300, temperature=0.7)
+            llm_duration_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
+
+            # Log LLM response metadata and preview
+            try:
+                usage = response.usage if hasattr(response, 'usage') else None
+                logger.info(
+                    "LLM response received (socratic)",
+                    extra={
+                        "session_id": session_id,
+                        "model": getattr(response, 'model', None),
+                        "usage": usage,
+                        "response_preview": response.content[:300],
+                        "flow_id": flow_id,
+                        "duration_ms": llm_duration_ms
+                    }
+                )
+            except Exception:
+                logger.debug("Could not log full LLM response metadata", exc_info=True)
+
             return response.content.strip()
         except Exception as e:
             logger.error(f"LLM generation failed: {e}", exc_info=True)
             # Circuit Breaker: Fallback cuando Ollama está inaccesible
-            return self._get_fallback_socratic_response(prompt)
+            return self._get_fallback_socratic_response(prompt, flow_id=flow_id)
 
-    async def _generate_conceptual_explanation(self, prompt: str, strategy: Dict[str, Any], session_id: str = None) -> str:
+    async def _generate_conceptual_explanation(
+        self,
+        prompt: str,
+        strategy: Dict[str, Any],
+        session_id: str = None,
+        flow_id: Optional[str] = None
+    ) -> str:
         """✅ Genera explicación conceptual con memoria de conversación"""
         # Recuperar historial de conversación si hay session_id
         conversation_history = []
@@ -626,14 +881,49 @@ Usa markdown para formato. Sé claro y conciso (máximo 200 palabras)."""
         )
         
         try:
+            logger.info(
+                "Sending messages to LLM (conceptual)",
+                extra={
+                    "session_id": session_id,
+                    "messages_count": len(messages),
+                    "messages_preview": [m.content[:200] for m in messages],
+                    "flow_id": flow_id
+                }
+            )
+
+            llm_started_at = time.perf_counter()
             response = await self.llm.generate(messages, max_tokens=400, temperature=0.7)
+            llm_duration_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
+
+            try:
+                usage = response.usage if hasattr(response, 'usage') else None
+                logger.info(
+                    "LLM response received (conceptual)",
+                    extra={
+                        "session_id": session_id,
+                        "model": getattr(response, 'model', None),
+                        "usage": usage,
+                        "response_preview": response.content[:300],
+                        "flow_id": flow_id,
+                        "duration_ms": llm_duration_ms
+                    }
+                )
+            except Exception:
+                logger.debug("Could not log full LLM response metadata", exc_info=True)
+
             return response.content.strip()
         except Exception as e:
             logger.error(f"LLM generation failed: {e}", exc_info=True)
             # Circuit Breaker: Fallback cuando Ollama está inaccesible
-            return self._get_fallback_conceptual_explanation(prompt)
+            return self._get_fallback_conceptual_explanation(prompt, flow_id=flow_id)
 
-    async def _generate_guided_hints(self, prompt: str, strategy: Dict[str, Any], session_id: str = None) -> str:
+    async def _generate_guided_hints(
+        self,
+        prompt: str,
+        strategy: Dict[str, Any],
+        session_id: str = None,
+        flow_id: Optional[str] = None
+    ) -> str:
         """✅ Genera pistas guiadas con memoria de conversación"""
         # Recuperar historial de conversación si hay session_id
         conversation_history = []
@@ -667,12 +957,41 @@ Cada pista debe acercar al estudiante a la solución sin dársela directamente."
         )
         
         try:
+            logger.info(
+                "Sending messages to LLM (guided_hints)",
+                extra={
+                    "session_id": session_id,
+                    "messages_count": len(messages),
+                    "messages_preview": [m.content[:200] for m in messages],
+                    "flow_id": flow_id
+                }
+            )
+
+            llm_started_at = time.perf_counter()
             response = await self.llm.generate(messages, max_tokens=350, temperature=0.7)
+            llm_duration_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
+
+            try:
+                usage = response.usage if hasattr(response, 'usage') else None
+                logger.info(
+                    "LLM response received (guided_hints)",
+                    extra={
+                        "session_id": session_id,
+                        "model": getattr(response, 'model', None),
+                        "usage": usage,
+                        "response_preview": response.content[:300],
+                        "flow_id": flow_id,
+                        "duration_ms": llm_duration_ms
+                    }
+                )
+            except Exception:
+                logger.debug("Could not log full LLM response metadata", exc_info=True)
+
             return response.content.strip()
         except Exception as e:
             logger.error(f"LLM generation failed: {e}", exc_info=True)
             # Circuit Breaker: Fallback cuando Ollama está inaccesible
-            return self._get_fallback_guided_hints(prompt)
+            return self._get_fallback_guided_hints(prompt, flow_id=flow_id)
 
     def _generate_clarification_request(self, prompt: str, strategy: Dict[str, Any]) -> str:
         """Solicita clarificación"""
@@ -692,11 +1011,20 @@ Por favor, reformulá tu pregunta con más detalles.
         session_id: str,
         prompt: str,
         strategy: Dict[str, Any],
-        classification: Dict[str, Any]
+        classification: Dict[str, Any],
+        flow_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Procesa interacción en modo S-IA-X (Simulador)"""
         # Placeholder para simuladores
         # FIX Cortez22 DEFECTO 1.8: Use "response" not "message"
+        logger.info(
+            "Processing simulator mode",
+            extra={
+                "session_id": session_id,
+                "flow_id": flow_id,
+                "strategy_keys": sorted(strategy.keys()) if isinstance(strategy, dict) else []
+            }
+        )
         return {
             "response": "[Modo Simulador - En desarrollo]",
             "mode": "simulator",
@@ -709,11 +1037,20 @@ Por favor, reformulá tu pregunta con más detalles.
         session_id: str,
         prompt: str,
         strategy: Dict[str, Any],
-        classification: Dict[str, Any]
+        classification: Dict[str, Any],
+        flow_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Procesa interacción en modo E-IA-Proc (Evaluador)"""
         # Placeholder para evaluador
         # FIX Cortez22 DEFECTO 1.8: Use "response" not "message"
+        logger.info(
+            "Processing evaluator mode",
+            extra={
+                "session_id": session_id,
+                "flow_id": flow_id,
+                "strategy_keys": sorted(strategy.keys()) if isinstance(strategy, dict) else []
+            }
+        )
         return {
             "response": "[Modo Evaluador - En desarrollo]",
             "mode": "evaluator",
@@ -947,6 +1284,8 @@ Por favor, reformulá tu pregunta con más detalles.
         description: str,
         evidence: List[str],
         trace_ids: List[str],
+        flow_id: Optional[str] = None,
+        risk_repo_override: Optional[RiskRepositoryProtocol] = None,
         **kwargs
     ) -> Optional[Risk]:
         """Registra un riesgo detectado en BD (STATELESS)"""
@@ -964,10 +1303,12 @@ Por favor, reformulá tu pregunta con más detalles.
             **kwargs
         )
 
+        repo = risk_repo_override or self.risk_repo
+
         # ✅ STATELESS: Persistir en BD
-        if self.risk_repo is not None:
+        if repo is not None:
             try:
-                self.risk_repo.create(risk)
+                repo.create(risk)
                 # ✅ Structured logging: Risk persisted successfully
                 logger.info(
                     "Risk persisted to database",
@@ -978,7 +1319,8 @@ Por favor, reformulá tu pregunta con más detalles.
                         "dimension": dimension.value,
                         "student_id": student_id,
                         "activity_id": activity_id,
-                        "trace_count": len(trace_ids)
+                        "trace_count": len(trace_ids),
+                        "flow_id": flow_id
                     }
                 )
                 # ✅ HIGH-01: Record Prometheus metric for risk detection
@@ -999,7 +1341,8 @@ Por favor, reformulá tu pregunta con más detalles.
                         "risk_type": risk_type.value,
                         "risk_level": risk_level.value,
                         "student_id": student_id,
-                        "activity_id": activity_id
+                        "activity_id": activity_id,
+                        "flow_id": flow_id
                     }
                 )
                 # Re-raise to maintain error propagation
@@ -1012,22 +1355,29 @@ Por favor, reformulá tu pregunta con más detalles.
                     "risk_id": risk.id,
                     "risk_type": risk_type.value,
                     "risk_level": risk_level.value,
-                    "student_id": student_id
+                    "student_id": student_id,
+                    "flow_id": flow_id
                 }
             )
 
         return risk
 
-    def _persist_risk_object(self, risk: Risk) -> None:
+    def _persist_risk_object(
+        self,
+        risk: Risk,
+        flow_id: Optional[str] = None,
+        risk_repo_override: Optional[RiskRepositoryProtocol] = None,
+    ) -> None:
         """
         Persiste un objeto Risk existente en BD (STATELESS)
 
         Args:
             risk: Objeto Risk ya creado que se debe persistir
         """
-        if self.risk_repo is not None:
+        repo = risk_repo_override or self.risk_repo
+        if repo is not None:
             try:
-                self.risk_repo.create(risk)
+                repo.create(risk)
                 logger.info(
                     "Risk persisted to database",
                     extra={
@@ -1035,7 +1385,8 @@ Por favor, reformulá tu pregunta con más detalles.
                         "risk_type": risk.risk_type.value,
                         "risk_level": risk.risk_level.value,
                         "dimension": risk.dimension.value,
-                        "session_id": risk.session_id
+                        "session_id": risk.session_id,
+                        "flow_id": flow_id
                     }
                 )
                 # Record Prometheus metric for risk detection
@@ -1053,13 +1404,14 @@ Por favor, reformulá tu pregunta con más detalles.
                     extra={
                         "risk_id": risk.id,
                         "risk_type": risk.risk_type.value,
-                        "session_id": risk.session_id
+                        "session_id": risk.session_id,
+                        "flow_id": flow_id
                     }
                 )
         else:
             logger.warning(
                 "Risk repository is None, cannot persist risk",
-                extra={"risk_id": risk.id, "risk_type": risk.risk_type.value}
+                extra={"risk_id": risk.id, "risk_type": risk.risk_type.value, "flow_id": flow_id}
             )
 
     def _analyze_risks_async(
@@ -1067,7 +1419,9 @@ Por favor, reformulá tu pregunta con más detalles.
         session_id: str,
         input_trace: CognitiveTrace,
         response_trace: CognitiveTrace,
-        classification: Dict[str, Any]
+        classification: Dict[str, Any],
+        flow_id: Optional[str] = None,
+        risk_repo_override: Optional[RiskRepositoryProtocol] = None,
     ) -> None:
         """
         Análisis de riesgos asíncrono (AR-IA)
@@ -1096,13 +1450,17 @@ Por favor, reformulá tu pregunta con más detalles.
                 "response_trace_id": response_trace.id,
                 "classification_type": classification.get("type", "unknown"),
                 "is_total_delegation": classification.get("is_total_delegation", False),
-                "ai_involvement": input_trace.ai_involvement
+                "ai_involvement": input_trace.ai_involvement,
+                "flow_id": flow_id
             }
         )
 
         # Skip if no repositories available (backward compatibility)
-        if self.risk_repo is None:
-            logger.debug("Risk repository not available, skipping risk analysis")
+        if self.risk_repo is None and risk_repo_override is None:
+            logger.debug(
+                "Risk repository not available, skipping risk analysis",
+                extra={"flow_id": flow_id, "session_id": session_id}
+            )
             return
 
         detected_risks = []
@@ -1139,7 +1497,11 @@ Por favor, reformulá tu pregunta con más detalles.
                 )
             )
             detected_risks.append(risk)
-            self._persist_risk_object(risk)  # FIX: Persistir riesgo inmediatamente
+            self._persist_risk_object(
+                risk,
+                flow_id=flow_id,
+                risk_repo_override=risk_repo_override,
+            )
 
         # === RC2: Dependencia Excesiva de IA ===
         # Import constant to avoid hardcoded value
@@ -1165,7 +1527,11 @@ Por favor, reformulá tu pregunta con más detalles.
                 ]
             )
             detected_risks.append(risk)
-            self._persist_risk_object(risk)  # FIX: Persistir riesgo inmediatamente
+            self._persist_risk_object(
+                risk,
+                flow_id=flow_id,
+                risk_repo_override=risk_repo_override,
+            )
 
         # === RC3: Falta de Justificación ===
         has_justification = (
@@ -1194,7 +1560,11 @@ Por favor, reformulá tu pregunta con más detalles.
                 ]
             )
             detected_risks.append(risk)
-            self._persist_risk_object(risk)  # FIX: Persistir riesgo inmediatamente
+            self._persist_risk_object(
+                risk,
+                flow_id=flow_id,
+                risk_repo_override=risk_repo_override,
+            )
 
         # === REp1: Aceptación Acrítica ===
         # Detectar si el estudiante acepta respuestas sin cuestionarlas
@@ -1222,7 +1592,7 @@ Por favor, reformulá tu pregunta con más detalles.
                     ]
                 )
                 detected_risks.append(risk)
-                self._persist_risk_object(risk)  # FIX: Persistir riesgo inmediatamente
+                self._persist_risk_object(risk, flow_id=flow_id)  # FIX: Persistir riesgo inmediatamente
 
         # Log summary
         if detected_risks:
@@ -1232,13 +1602,14 @@ Por favor, reformulá tu pregunta con más detalles.
                     "session_id": session_id,
                     "risk_count": len(detected_risks),
                     "risk_types": [r.risk_type.value for r in detected_risks],
-                    "risk_levels": [r.risk_level.value for r in detected_risks]
+                    "risk_levels": [r.risk_level.value for r in detected_risks],
+                    "flow_id": flow_id
                 }
             )
         else:
             logger.info(
                 "Risk analysis completed: no risks detected",
-                extra={"session_id": session_id}
+                extra={"session_id": session_id, "flow_id": flow_id}
             )
 
         # FIX APPLIED: Risks are now persisted immediately via _persist_risk_object()
@@ -1372,13 +1743,16 @@ Por favor, reformulá tu pregunta con más detalles.
     # Circuit Breaker: Fallback Methods (cuando LLM falla o está inaccesible)
     # =========================================================================
     
-    def _get_fallback_socratic_response(self, prompt: str) -> str:
+    def _get_fallback_socratic_response(self, prompt: str, flow_id: Optional[str] = None) -> str:
         """
         Fallback cuando Ollama está inaccesible - Respuesta Socrática
         
         Usa un banco de preguntas genéricas pero pedagógicamente válidas
         """
-        logger.warning("Using fallback Socratic response (LLM unavailable)")
+        logger.warning(
+            "Using fallback Socratic response (LLM unavailable)",
+            extra={"flow_id": flow_id} if flow_id else None
+        )
         return """⚠️ El sistema de IA está experimentando dificultades temporales, pero puedo ayudarte con estas preguntas guía:
 
 **Para ayudarte mejor, necesito entender tu proceso de pensamiento:**
@@ -1392,11 +1766,14 @@ Por favor, reformulá tu pregunta con más detalles.
 
 _Responde estas preguntas y podremos continuar cuando el sistema se recupere._"""
 
-    def _get_fallback_conceptual_explanation(self, prompt: str) -> str:
+    def _get_fallback_conceptual_explanation(self, prompt: str, flow_id: Optional[str] = None) -> str:
         """
         Fallback cuando Ollama está inaccesible - Explicación Conceptual
         """
-        logger.warning("Using fallback conceptual explanation (LLM unavailable)")
+        logger.warning(
+            "Using fallback conceptual explanation (LLM unavailable)",
+            extra={"flow_id": flow_id} if flow_id else None
+        )
         return """⚠️ El sistema de IA está temporalmente fuera de servicio.
 
 **Mientras tanto, aquí tienes una estructura para explorar el concepto:**
@@ -1419,11 +1796,14 @@ _Responde estas preguntas y podremos continuar cuando el sistema se recupere._""
 
 _El sistema estará disponible nuevamente en breve._"""
 
-    def _get_fallback_guided_hints(self, prompt: str) -> str:
+    def _get_fallback_guided_hints(self, prompt: str, flow_id: Optional[str] = None) -> str:
         """
         Fallback cuando Ollama está inaccesible - Pistas Guiadas
         """
-        logger.warning("Using fallback guided hints (LLM unavailable)")
+        logger.warning(
+            "Using fallback guided hints (LLM unavailable)",
+            extra={"flow_id": flow_id} if flow_id else None
+        )
         return """⚠️ El asistente de IA está temporalmente inaccesible.
 
 **Aquí tienes una estrategia general de resolución de problemas:**

@@ -207,7 +207,7 @@ class SessionRepository:
         """
         Create a new learning session.
 
-        ✅ FIX 3.2 Cortez5: Added try/except/rollback for transaction safety
+        ✅ FIX: Removed commit/rollback - let transaction context manager handle it
 
         Args:
             student_id: Student identifier
@@ -219,30 +219,17 @@ class SessionRepository:
 
         Returns:
             Created SessionDB instance
-
-        Raises:
-            Exception: Re-raises after rollback if creation fails
         """
-        try:
-            session = SessionDB(
-                id=str(uuid4()),
-                student_id=student_id,
-                activity_id=activity_id,
-                mode=mode,
-                simulator_type=simulator_type,
-            )
-            self.db.add(session)
-            self.db.commit()
-            self.db.refresh(session)
-            return session
-        except Exception as e:
-            self.db.rollback()
-            logger.error(f"Failed to create session: {e}", extra={
-                "student_id": student_id,
-                "activity_id": activity_id,
-                "mode": mode
-            })
-            raise
+        session = SessionDB(
+            id=str(uuid4()),
+            student_id=student_id,
+            activity_id=activity_id,
+            mode=mode,
+            simulator_type=simulator_type,
+        )
+        self.db.add(session)
+        self.db.flush()  # Flush to get the ID without committing
+        return session
 
     def get_by_id(self, session_id: str, load_relations: bool = False) -> Optional[SessionDB]:
         """
@@ -763,40 +750,31 @@ class TraceRepository:
         """
         Create a new cognitive trace.
 
-        ✅ FIX 3.2 Cortez5: Added try/except/rollback for transaction safety
+        ✅ FIX: Removed commit/rollback - let transaction context manager handle it
         """
-        try:
-            # ✅ FIXED (2025-11-22): Conversión defensiva de enums (C5)
-            db_trace = CognitiveTraceDB(
-                id=trace.id or str(uuid4()),
-                session_id=trace.session_id,
-                student_id=trace.student_id,
-                activity_id=trace.activity_id,
-                trace_level=_safe_enum_to_str(trace.trace_level, TraceLevel),
-                interaction_type=_safe_enum_to_str(trace.interaction_type, InteractionType),
-                content=trace.content,
-                context=trace.context,
-                trace_metadata=trace.metadata,
-                cognitive_state=_safe_cognitive_state_to_str(trace.cognitive_state),
-                cognitive_intent=trace.cognitive_intent,
-                decision_justification=trace.decision_justification,
-                alternatives_considered=trace.alternatives_considered,
-                strategy_type=trace.strategy_type,
-                ai_involvement=trace.ai_involvement,
-                parent_trace_id=trace.parent_trace_id,
-                agent_id=trace.agent_id,
-            )
-            self.db.add(db_trace)
-            self.db.commit()
-            self.db.refresh(db_trace)
-            return db_trace
-        except Exception as e:
-            self.db.rollback()
-            logger.error(f"Failed to create trace: {e}", extra={
-                "session_id": trace.session_id,
-                "student_id": trace.student_id
-            })
-            raise
+        # ✅ FIXED (2025-11-22): Conversión defensiva de enums (C5)
+        db_trace = CognitiveTraceDB(
+            id=trace.id or str(uuid4()),
+            session_id=trace.session_id,
+            student_id=trace.student_id,
+            activity_id=trace.activity_id,
+            trace_level=_safe_enum_to_str(trace.trace_level, TraceLevel),
+            interaction_type=_safe_enum_to_str(trace.interaction_type, InteractionType),
+            content=trace.content,
+            context=trace.context,
+            trace_metadata=trace.trace_metadata,
+            cognitive_state=_safe_cognitive_state_to_str(trace.cognitive_state),
+            cognitive_intent=trace.cognitive_intent,
+            decision_justification=trace.decision_justification,
+            alternatives_considered=trace.alternatives_considered,
+            strategy_type=trace.strategy_type,
+            ai_involvement=trace.ai_involvement,
+            parent_trace_id=trace.parent_trace_id,
+            agent_id=trace.agent_id,
+        )
+        self.db.add(db_trace)
+        self.db.flush()  # Flush to get the ID without committing
+        return db_trace
 
     def get_by_id(self, trace_id: str) -> Optional[CognitiveTraceDB]:
         """Get trace by ID"""
@@ -1102,44 +1080,35 @@ class RiskRepository:
         """
         Create a new risk.
 
-        ✅ FIX 3.2 Cortez5: Added try/except/rollback for transaction safety
+        ✅ FIX: Removed commit/rollback - let transaction context manager handle it
 
         Note: All getattr() calls removed - Pydantic models guarantee all fields exist
         with appropriate defaults (Optional fields default to None, lists to [], etc.)
         """
-        try:
-            # ✅ FIXED (2025-11-22): Conversión defensiva de enums (C5)
-            db_risk = RiskDB(
-                id=risk.id or str(uuid4()),
-                session_id=risk.session_id,  # REQUIRED field (Phase 0 fix)
-                student_id=risk.student_id,
-                activity_id=risk.activity_id,
-                risk_type=_safe_enum_to_str(risk.risk_type, RiskType),
-                risk_level=_safe_enum_to_str(risk.risk_level, RiskLevel),
-                dimension=risk.dimension.value,  # RiskDimension - mantener .value por ahora (no hay import)
-                description=risk.description,
-                impact=risk.impact,  # Optional[str], defaults to None
-                evidence=risk.evidence,  # List[str], defaults to []
-                trace_ids=risk.trace_ids,  # List[str], defaults to []
-                root_cause=risk.root_cause,  # Optional[str], defaults to None
-                impact_assessment=risk.impact_assessment,  # Optional[str], defaults to None
-                recommendations=risk.recommendations,  # List[str], defaults to []
-                pedagogical_intervention=risk.pedagogical_intervention,  # Optional[str], defaults to None
-                resolved=risk.resolved,  # bool, defaults to False
-                resolution_notes=risk.resolution_notes,  # Optional[str], defaults to None
-                detected_by=risk.detected_by,  # str, defaults to "AR-IA"
-            )
-            self.db.add(db_risk)
-            self.db.commit()
-            self.db.refresh(db_risk)
-            return db_risk
-        except Exception as e:
-            self.db.rollback()
-            logger.error(f"Failed to create risk: {e}", extra={
-                "session_id": risk.session_id,
-                "risk_level": str(risk.risk_level)
-            })
-            raise
+        # ✅ FIXED (2025-11-22): Conversión defensiva de enums (C5)
+        db_risk = RiskDB(
+            id=risk.id or str(uuid4()),
+            session_id=risk.session_id,  # REQUIRED field (Phase 0 fix)
+            student_id=risk.student_id,
+            activity_id=risk.activity_id,
+            risk_type=_safe_enum_to_str(risk.risk_type, RiskType),
+            risk_level=_safe_enum_to_str(risk.risk_level, RiskLevel),
+            dimension=risk.dimension.value,  # RiskDimension - mantener .value por ahora (no hay import)
+            description=risk.description,
+            impact=risk.impact,  # Optional[str], defaults to None
+            evidence=risk.evidence,  # List[str], defaults to []
+            trace_ids=risk.trace_ids,  # List[str], defaults to []
+            root_cause=risk.root_cause,  # Optional[str], defaults to None
+            impact_assessment=risk.impact_assessment,  # Optional[str], defaults to None
+            recommendations=risk.recommendations,  # List[str], defaults to []
+            pedagogical_intervention=risk.pedagogical_intervention,  # Optional[str], defaults to None
+            resolved=risk.resolved,  # bool, defaults to False
+            resolution_notes=risk.resolution_notes,  # Optional[str], defaults to None
+            detected_by=risk.detected_by,  # str, defaults to "AR-IA"
+        )
+        self.db.add(db_risk)
+        self.db.flush()  # Flush to get the ID without committing
+        return db_risk
 
     def get_by_id(self, risk_id: str) -> Optional[RiskDB]:
         """Get risk by ID"""

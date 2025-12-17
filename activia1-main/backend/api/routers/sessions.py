@@ -12,6 +12,7 @@ import logging
 
 from ...database.repositories import SessionRepository, TraceRepository, RiskRepository, EvaluationRepository
 from ...database.models import SessionDB, CognitiveTraceDB, RiskDB, EvaluationDB
+from ...database.transaction import transaction
 from ..deps import get_db, get_session_repository, get_trace_repository, get_risk_repository, get_current_user
 from ..schemas.session import (
     SessionCreate,
@@ -41,6 +42,7 @@ async def create_session(
     session_data: SessionCreate,
     session_repo: SessionRepository = Depends(get_session_repository),
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> APIResponse[SessionResponse]:
     """
     Crea una nueva sesión de aprendizaje.
@@ -48,6 +50,7 @@ async def create_session(
     Args:
         session_data: Datos de la sesión a crear
         session_repo: Repositorio de sesiones (inyectado)
+        db: Database session (inyectado)
 
     Returns:
         APIResponse con la sesión creada
@@ -71,30 +74,32 @@ async def create_session(
                    "security_auditor, tech_lead, demanding_client"
         )
 
-    # Crear sesión en la base de datos
-    # Convertir enum a string para la BD
-    db_session = session_repo.create(
-        student_id=session_data.student_id,
-        activity_id=session_data.activity_id,
-        mode=session_data.mode.value,
-        simulator_type=session_data.simulator_type,
-    )
+    # FIX: Wrap session creation in transaction to ensure it's persisted
+    with transaction(db):
+        # Crear sesión en la base de datos
+        # Convertir enum a string para la BD
+        db_session = session_repo.create(
+            student_id=session_data.student_id,
+            activity_id=session_data.activity_id,
+            mode=session_data.mode.value,
+            simulator_type=session_data.simulator_type,
+        )
 
-    # Convertir a schema de respuesta
-    response_data = SessionResponse(
-        id=db_session.id,
-        student_id=db_session.student_id,
-        activity_id=db_session.activity_id,
-        mode=db_session.mode,
-        status=db_session.status,
-        simulator_type=db_session.simulator_type,
-        start_time=db_session.start_time,
-        end_time=db_session.end_time,
-        trace_count=0,  # Nueva sesión, sin trazas aún
-        risk_count=0,  # Nueva sesión, sin riesgos aún
-        created_at=db_session.created_at,
-        updated_at=db_session.updated_at,
-    )
+        # Convertir a schema de respuesta
+        response_data = SessionResponse(
+            id=db_session.id,
+            student_id=db_session.student_id,
+            activity_id=db_session.activity_id,
+            mode=db_session.mode,
+            status=db_session.status,
+            simulator_type=db_session.simulator_type,
+            start_time=db_session.start_time,
+            end_time=db_session.end_time,
+            trace_count=0,  # Nueva sesión, sin trazas aún
+            risk_count=0,  # Nueva sesión, sin riesgos aún
+            created_at=db_session.created_at,
+            updated_at=db_session.updated_at,
+        )
 
     return APIResponse(
         success=True,
@@ -907,10 +912,17 @@ async def interact_with_tutor(
             }
         )
         
+        # Extraer el mensaje de respuesta correctamente
+        response_message = result.get("message", "")
+        
+        # Si el mensaje es un dict (en caso de que venga wrapped), extraer el content
+        if isinstance(response_message, dict):
+            response_message = response_message.get("content", str(response_message))
+        
         return APIResponse(
             success=True,
             data={
-                "response": result.get("message", ""),  # El método retorna 'message', no 'response'
+                "response": response_message,  # El frontend espera 'response'
                 "metadata": {
                     "intervention_type": result.get("intervention_type"),
                     "semaforo": result.get("semaforo"),
@@ -922,8 +934,17 @@ async def interact_with_tutor(
             },
             message="Interaction processed successfully"
         )
+    except ValueError as ve:
+        # Validation errors from tutor
+        logger.error(f"Validation error in tutor interaction: {str(ve)}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(ve)
+        )
     except Exception as e:
         logger.error(f"Error processing tutor interaction: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail=f"Error processing interaction: {str(e)}"

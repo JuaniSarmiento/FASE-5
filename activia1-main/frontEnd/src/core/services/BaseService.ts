@@ -221,12 +221,11 @@ export abstract class BaseService<T> {
   protected handleError(error: unknown, context: string): never {
     console.error(`[${this.endpoint}] ${context}:`, error);
 
-    const err = error as { response?: { data?: { message?: string }; statusText?: string }; request?: unknown; message?: string };
+    const err = error as { error?: { message?: string }; request?: unknown; message?: string };
 
-    if (err.response) {
-      // Backend returned error
-      const message = err.response.data?.message || err.response.statusText;
-      throw new Error(`${context}: ${message}`);
+    // Check for APIError structure (from axios interceptor)
+    if (err.error?.message) {
+      throw new Error(`${context}: ${err.error.message}`);
     } else if (err.request) {
       // No response received
       throw new Error(`${context}: No response from server`);
