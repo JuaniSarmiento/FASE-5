@@ -19,6 +19,7 @@ services:
     # ========================================================================
     # GPU Runtime Configuration - Nivel Producción
     # ========================================================================
+    runtime: nvidia  # CRÍTICO: Forzar runtime NVIDIA
     deploy:
       resources:
         # CRÍTICO: Reservar recursos suficientes para evitar OOM
@@ -42,9 +43,8 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       
-      # CRÍTICO: Forzar número de capas en GPU
-      # Para Mistral-7B (33 capas): forzar ALL layers a GPU
-      - OLLAMA_NUM_GPU=99  # Valor alto fuerza máximo offloading
+      # CRÍTICO: NO forzar biblioteca específica, dejar que Ollama detecte
+      # - OLLAMA_NUM_GPU=99  # REMOVIDO - causa conflicto
       
       # VRAM Management - Optimizado para RTX 3050 6GB
       - OLLAMA_GPU_MEMORY_FRACTION=0.85  # Usar 85% de VRAM disponible (~5.1GB)
@@ -56,13 +56,13 @@ services:
       - OLLAMA_MAX_QUEUE=4               # Cola de requests
       
       # Context Window - Ajustado para no exceder VRAM
-      - OLLAMA_CONTEXT_LENGTH=4096       # 4K tokens (balance rendimiento/memoria)
+      - OLLAMA_NUM_CTX=4096              # 4K tokens (balance rendimiento/memoria)
       - OLLAMA_NUM_THREAD=6              # Threads CPU para inferencia
       
-      # Debugging GPU
-      - CUDA_VISIBLE_DEVICES=0           # GPU index (0 = primera GPU)
+      # Debugging GPU - REMOVIDAS variables que causan conflicto
+      # - CUDA_VISIBLE_DEVICES=0         # REMOVIDO - conflicto con NVIDIA_VISIBLE_DEVICES
       - OLLAMA_DEBUG=1                   # Habilitar logs detallados
-      - OLLAMA_LLM_LIBRARY=cuda          # Forzar backend CUDA
+      # - OLLAMA_LLM_LIBRARY=cuda        # REMOVIDO - dejar auto-detect
 
   # ========================================================================
   # API Backend - Variables relacionadas con Ollama

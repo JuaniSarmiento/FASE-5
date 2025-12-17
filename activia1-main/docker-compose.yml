@@ -49,9 +49,9 @@ services:
       - OLLAMA_TEMPERATURE=${OLLAMA_TEMPERATURE:-0.7}
       - OLLAMA_TIMEOUT=${OLLAMA_TIMEOUT:-180}
       - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-24h}
-      - OLLAMA_NUM_CTX=${OLLAMA_NUM_CTX:-}
-      - OLLAMA_NUM_THREAD=${OLLAMA_NUM_THREAD:-}
-      - OLLAMA_NUM_GPU=${OLLAMA_NUM_GPU:-}
+      - OLLAMA_NUM_CTX=${OLLAMA_NUM_CTX:-4096}
+      - OLLAMA_NUM_THREAD=${OLLAMA_NUM_THREAD:-6}
+      - OLLAMA_NUM_GPU=${OLLAMA_NUM_GPU:-99}
 
       # Security (REQUIRED: Set these in .env file, no defaults for security)
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
@@ -244,18 +244,35 @@ services:
           memory: 128M
 
   # ==========================================================================
-  # Ollama - Local LLM Server (usa modelos del host)
+  # Ollama - Local LLM Server con GPU Support
   # ==========================================================================
   ollama:
     image: ollama/ollama:latest
     container_name: ai-native-ollama
+    runtime: nvidia  # CRÍTICO: Usar runtime NVIDIA para GPU
     ports:
       - "11434:11434"
     environment:
-      # Keep model loaded in memory permanently for instant responses
+      # Ollama Server
       - OLLAMA_HOST=0.0.0.0
-      # NOTE: Ollama server env expects a Go duration string; keep it separate from API client keep_alive.
       - OLLAMA_KEEP_ALIVE=${OLLAMA_SERVER_KEEP_ALIVE:-24h}
+      
+      # NVIDIA GPU Support
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      
+      # GPU Memory Management
+      - OLLAMA_GPU_MEMORY_FRACTION=0.85
+      - OLLAMA_MAX_LOADED_MODELS=1
+      
+      # Performance Tuning
+      - OLLAMA_FLASH_ATTENTION=1
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_QUEUE=4
+      - OLLAMA_NUM_CTX=4096
+      - OLLAMA_NUM_THREAD=6
+      - OLLAMA_DEBUG=1
+      
     volumes:
       # Volumen persistente para modelos de Ollama
       - ollama_data:/root/.ollama
@@ -272,15 +289,19 @@ services:
       retries: 5
       start_period: 300s
 
-    # FIX 5.1: Add resource limits for Ollama (needs more for LLM inference)
+    # Resource limits with GPU support
     deploy:
       resources:
         limits:
-          memory: 8G
-          cpus: '4.0'
+          memory: 12G
+          cpus: '6.0'
         reservations:
-          memory: 2G
-          cpus: '1.0'
+          memory: 4G
+          cpus: '2.0'
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, compute, utility]
 
     # FIX 4.10 Cortez3: Add log rotation for Ollama
     logging:

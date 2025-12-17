@@ -9,6 +9,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import TutorPage from './pages/TutorPage';
 import ExercisesPageNew from './pages/ExercisesPageNew';
+import ExercisesPage from './pages/ExercisesPage'; // Sistema nuevo con evaluador Alex
 import SimulatorsPage from './pages/SimulatorsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 // FIX 2.1: Import missing pages (Cortez2 audit)
@@ -42,7 +43,9 @@ function App() {
               <Route path="dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
               {/* Critical pages with markdown rendering wrapped with their own ErrorBoundary */}
               <Route path="tutor" element={<ErrorBoundary><TutorPage /></ErrorBoundary>} />
-              <Route path="exercises" element={<ErrorBoundary><ExercisesPageNew /></ErrorBoundary>} />
+              <Route path="exercises-old" element={<ErrorBoundary><ExercisesPageNew /></ErrorBoundary>} />
+              {/* Sistema de Ejercicios con Evaluador Alex */}
+              <Route path="exercises/*" element={<ErrorBoundary><ExercisesPage /></ErrorBoundary>} />
               <Route path="simulators" element={<ErrorBoundary><SimulatorsPage /></ErrorBoundary>} />
               {/* FIX 2.8: Add ErrorBoundary to AnalyticsPage */}
               <Route path="analytics" element={<ErrorBoundary><AnalyticsPage /></ErrorBoundary>} />

@@ -351,3 +351,41 @@ export interface UserStats {
 
 // ===== Type Aliases for RiskSeverity (backwards compat) =====
 export type RiskSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
+
+// ============================================================================
+// EXERCISE SYSTEM TYPES
+// ============================================================================
+// FIX: Export all exercise-related types for the programming exercise system
+export type {
+  ExerciseDifficulty,
+  EditorLanguage,
+  IExerciseMeta,
+  IExerciseUIConfig,
+  IExerciseContent,
+  IHiddenTest,
+  IExercise,
+  IExerciseSubmissionResult,
+  IExerciseSubmission,
+  IExerciseFilters,
+  IExerciseProgress,
+} from './exercise.d';
+
+// ============================================================================
+// CODE EVALUATION SYSTEM TYPES
+// ============================================================================
+// Sistema de evaluación con mentor "Alex" - Code Review automático
+export type {
+  EvaluationStatus,
+  ToastType,
+  Severity,
+  IDimensionScore,
+  ICodeAnnotation,
+  IEvaluationResult,
+  IEvaluationRequest,
+  IEvaluationRubric,
+  IEvaluationHistory,
+  IStudentProgress,
+  IAchievement,
+} from './evaluation.d';
+
+export { ACHIEVEMENTS_CATALOG } from './evaluation.d';

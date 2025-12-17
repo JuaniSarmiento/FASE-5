@@ -8,6 +8,7 @@ import os
 import time
 import json
 import logging
+from pathlib import Path
 
 from backend.database.config import get_db
 from backend.models.exercise import Exercise, UserExerciseSubmission
@@ -17,10 +18,34 @@ from backend.database.models import UserDB as User
 from backend.llm.ollama_provider import OllamaProvider
 # FIX 1.3 Cortez3: Import rate limiter for code execution endpoint
 from backend.api.middleware.rate_limiter import limiter
+# NUEVO: Importar loader de ejercicios JSON y evaluador Alex
+from backend.data.exercises.loader import ExerciseLoader
+from backend.services.code_evaluator import CodeEvaluator
+# Importar LLM provider para evaluación con IA
+from backend.api.deps import get_llm_provider
+from backend.llm.base import LLMMessage, LLMRole
+from backend.api.schemas.exercises import (
+    ExerciseJSONSchema,
+    ExerciseListItemSchema,
+    CodeSubmissionRequest,
+    EvaluationResultSchema,
+    SandboxResultSchema,
+    SubmissionResponseSchema,
+    ExerciseStatsSchema,
+    UserProgressSchema,
+    # Legacy schemas
+    ExerciseResponse,
+    CodeSubmission,
+    SubmissionResult,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/exercises", tags=["Code Exercises"])
+
+# Inicializar loader y evaluador
+exercise_loader = ExerciseLoader()
+# Code evaluator se inicializará con LLM provider en cada request
 
 
 # Schemas
@@ -297,7 +322,193 @@ RESPONDE SOLO CON EL JSON, SIN TEXTO ADICIONAL."""
         }
 
 
-@router.get("", response_model=List[ExerciseResponse])
+# =============================================================================
+# NUEVOS ENDPOINTS - Sistema con Alex (Ejercicios JSON)
+# =============================================================================
+
+@router.get("/json/list", response_model=List[ExerciseListItemSchema])
+async def list_json_exercises(
+    difficulty: Optional[str] = None,
+    unit: Optional[str] = None,
+    tag: Optional[str] = None
+):
+    """
+    Lista ejercicios del sistema JSON (con Alex evaluador)
+    
+    Parámetros:
+    - difficulty: 'easy', 'medium', 'hard'
+    - unit: 'unit1', 'unit2', etc.
+    - tag: filtrar por tag específico
+    """
+    # Obtener todos los ejercicios
+    exercises = exercise_loader.get_all()
+    
+    # Filtrar
+    if difficulty:
+        exercises = [e for e in exercises if e['meta']['difficulty'].lower() == difficulty.lower()]
+    if unit:
+        exercises = [e for e in exercises if e['id'].startswith(unit.upper())]
+    if tag:
+        exercises = [e for e in exercises if tag.lower() in [t.lower() for t in e['meta']['tags']]]
+    
+    # Convertir a schema de listado
+    result = []
+    for ex in exercises:
+        result.append(ExerciseListItemSchema(
+            id=ex['id'],
+            title=ex['meta']['title'],
+            difficulty=ex['meta']['difficulty'],
+            estimated_time_minutes=ex['meta'].get('estimated_time_min', ex['meta'].get('estimated_time_minutes', 0)),
+            points=ex['meta'].get('points', 0),
+            tags=ex['meta']['tags'],
+            is_completed=False  # TODO: checkear en BD si el usuario lo completó
+        ))
+    
+    return result
+
+
+@router.get("/json/stats", response_model=ExerciseStatsSchema)
+async def get_json_exercises_stats():
+    """Obtiene estadísticas de los ejercicios JSON"""
+    stats = exercise_loader.get_stats()
+    
+    return ExerciseStatsSchema(
+        total_exercises=stats['total_exercises'],
+        by_difficulty=stats['by_difficulty'],
+        total_time_hours=stats['total_time_hours'],
+        unique_tags=stats['unique_tags']
+    )
+
+
+@router.get("/json/{exercise_id}", response_model=ExerciseJSONSchema)
+async def get_json_exercise(
+    exercise_id: str
+):
+    """Obtiene un ejercicio específico del sistema JSON"""
+    exercise = exercise_loader.get_by_id(exercise_id)
+    
+    if not exercise:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Ejercicio '{exercise_id}' no encontrado"
+        )
+    
+    return ExerciseJSONSchema(**exercise)
+
+
+@router.post("/json/{exercise_id}/submit", response_model=EvaluationResultSchema)
+@limiter.limit("10/minute")
+async def submit_json_exercise(
+    request: Request,
+    exercise_id: str,
+    submission: CodeSubmissionRequest,
+    llm_provider = Depends(get_llm_provider)
+):
+    """
+    Evalúa el código del estudiante con Alex (mentor IA)
+    
+    Flujo:
+    1. Cargar ejercicio JSON
+    2. Ejecutar código en sandbox
+    3. Evaluar con Alex (CodeEvaluator)
+    4. Retornar evaluación completa con XP y logros
+    """
+    # 1. Cargar ejercicio
+    exercise = exercise_loader.get_by_id(exercise_id)
+    if not exercise:
+        raise HTTPException(404, detail=f"Ejercicio '{exercise_id}' no encontrado")
+    
+    # 2. Ejecutar en sandbox
+    logger.info(f"Ejecutando código para ejercicio {exercise_id} (usuario anónimo)")
+    
+    # Ejecutar tests ocultos
+    tests_passed = 0
+    tests_total = len(exercise['hidden_tests'])
+    stdout_output = ""
+    stderr_output = ""
+    total_execution_time = 0
+    
+    for test in exercise['hidden_tests']:
+        # Adaptarse a la estructura real de los JSON (input/expected)
+        test_input = test.get('input', test.get('input_data', ''))
+        if isinstance(test_input, dict) or isinstance(test_input, list):
+            test_input = json.dumps(test_input)
+        
+        stdout, stderr, exec_time = execute_python_code(
+            submission.student_code,
+            str(test_input),
+            timeout_seconds=30
+        )
+        
+        total_execution_time += exec_time
+        stdout_output += stdout + "\n"
+        stderr_output += stderr + "\n"
+        
+        # Verificar si pasó el test
+        if not stderr:
+            # Soportar tanto 'expected_output' (legacy) como 'expected' (nuevo)
+            expected = test.get('expected_output') or test.get('expected', '')
+            
+            if expected:
+                # Si expected es una expresión Python (ej: "total == 42600"), evaluarla
+                if '==' in expected or 'and' in expected or 'or' in expected:
+                    try:
+                        # Crear contexto con las variables ejecutando el código
+                        exec_globals = {}
+                        exec(submission.student_code, exec_globals)
+                        
+                        # Evaluar la expresión expected en ese contexto
+                        test_passed = eval(expected, exec_globals)
+                        
+                        if test_passed:
+                            tests_passed += 1
+                            logger.info(f"Test pasado: {expected}")
+                        else:
+                            logger.warning(f"Test falló: {expected} (evaluó a False)")
+                    except Exception as e:
+                        logger.warning(f"Error evaluando expected expression '{expected}': {e}")
+                else:
+                    # Es un output directo, comparar strings
+                    expected_str = str(expected).strip()
+                    actual = stdout.strip()
+                    if expected_str == actual:
+                        tests_passed += 1
+                        logger.info(f"Test pasado: output coincide")
+                    else:
+                        logger.warning(f"Test falló: expected '{expected_str}' != actual '{actual}'")
+    
+    sandbox_result = {
+        "exit_code": 0 if not stderr_output.strip() else 1,
+        "stdout": stdout_output.strip(),
+        "stderr": stderr_output.strip(),
+        "execution_time_ms": total_execution_time,
+        "tests_passed": tests_passed,
+        "tests_total": tests_total
+    }
+    
+    # 3. Evaluar con Alex (IA)
+    logger.info(f"Evaluando con Alex (IA): {tests_passed}/{tests_total} tests pasados")
+    
+    # Inicializar evaluador con LLM provider (Ollama)
+    code_evaluator = CodeEvaluator(llm_client=llm_provider)
+    
+    evaluation = await code_evaluator.evaluate(
+        exercise=exercise,
+        student_code=submission.student_code,
+        sandbox_result=sandbox_result
+    )
+    
+    # 4. Guardar en BD (opcional, para historial)
+    # TODO: Crear modelo UserExerciseEvaluation para guardar evaluaciones Alex
+    
+    logger.info(f"Evaluación completa: Score={evaluation['evaluation']['score']}, XP={evaluation['gamification']['xp_earned']}")
+    
+    return EvaluationResultSchema(**evaluation)
+
+
+# =============================================================================
+# LEGACY ENDPOINTS - Sistema de BD (compatibilidad hacia atrás)
+# =============================================================================
 async def list_exercises(
     difficulty: Optional[int] = None,
     db: Session = Depends(get_db)

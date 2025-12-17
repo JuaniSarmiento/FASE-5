@@ -2,13 +2,18 @@
  * Servicio para gestión de ejercicios de programación
  * FIX 2.6: Service for backend /exercises endpoints
  * FIX Cortez20: Added proper types instead of 'any'
+ * NUEVO: Integración con sistema JSON y evaluador Alex
  */
 
 import { BaseApiService } from './base.service';
-import type { SubmissionResult } from '@/types';
+import type { 
+  SubmissionResult,
+  IExercise,
+  IEvaluationResult,
+} from '@/types';
 
 /**
- * Exercise response from backend
+ * Exercise response from backend (Legacy BD)
  * FIX Cortez20: Replaced 'any' with proper interface
  */
 export interface Exercise {
@@ -22,6 +27,29 @@ export interface Exercise {
   time_limit_seconds: number;
   category?: string;
   tags?: string[];
+}
+
+/**
+ * Exercise list item (Sistema JSON)
+ */
+export interface ExerciseListItem {
+  id: string;
+  title: string;
+  difficulty: string; // 'easy', 'medium', 'hard'
+  estimated_time_minutes: number;
+  points: number;
+  tags: string[];
+  is_completed: boolean;
+}
+
+/**
+ * Exercise stats
+ */
+export interface ExerciseStats {
+  total_exercises: number;
+  by_difficulty: Record<string, number>;
+  total_time_hours: number;
+  unique_tags: number;
 }
 
 /**
@@ -47,12 +75,83 @@ export interface CodeSubmission {
 }
 
 /**
+ * Request para enviar código (Sistema JSON)
+ */
+export interface CodeSubmissionRequest {
+  student_code: string;
+}
+
+/**
  * ExercisesService - Gestión de ejercicios y submissions
  */
 class ExercisesService extends BaseApiService {
   constructor() {
     super('/exercises');
   }
+
+  // ==========================================================================
+  // NUEVOS MÉTODOS - Sistema JSON con Alex
+  // ==========================================================================
+
+  /**
+   * Listar ejercicios JSON
+   * Backend: GET /exercises/json/list
+   */
+  async listJSON(params?: {
+    difficulty?: string;
+    unit?: string;
+    tag?: string;
+  }): Promise<ExerciseListItem[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.difficulty) searchParams.append('difficulty', params.difficulty);
+    if (params?.unit) searchParams.append('unit', params.unit);
+    if (params?.tag) searchParams.append('tag', params.tag);
+
+    const query = searchParams.toString();
+    // FIX: Este endpoint devuelve array directo, no APIResponse wrapper
+    const response = await this.client.get<ExerciseListItem[]>(`${this.baseUrl}/json/list${query ? `?${query}` : ''}`);
+    return response.data;
+  }
+
+  /**
+   * Obtener ejercicio JSON por ID
+   * Backend: GET /exercises/json/{exercise_id}
+   */
+  async getJSONById(exerciseId: string): Promise<IExercise> {
+    // FIX: Este endpoint devuelve objeto directo, no APIResponse wrapper
+    const response = await this.client.get<IExercise>(`${this.baseUrl}/json/${exerciseId}`);
+    return response.data;
+  }
+
+  /**
+   * Enviar código para evaluación con Alex
+   * Backend: POST /exercises/json/{exercise_id}/submit
+   */
+  async submitJSON(
+    exerciseId: string,
+    code: string
+  ): Promise<IEvaluationResult> {
+    // FIX: Este endpoint devuelve objeto directo, no APIResponse wrapper
+    const response = await this.client.post<IEvaluationResult>(
+      `${this.baseUrl}/json/${exerciseId}/submit`,
+      { student_code: code }
+    );
+    return response.data;
+  }
+
+  /**
+   * Obtener estadísticas de ejercicios JSON
+   * Backend: GET /exercises/json/stats
+   */
+  async getJSONStats(): Promise<ExerciseStats> {
+    // FIX: Este endpoint devuelve objeto directo, no APIResponse wrapper
+    const response = await this.client.get<ExerciseStats>(`${this.baseUrl}/json/stats`);
+    return response.data;
+  }
+
+  // ==========================================================================
+  // MÉTODOS LEGACY - Sistema de BD (compatibilidad)
+  // ==========================================================================
 
   /**
    * Obtener ejercicio por ID
