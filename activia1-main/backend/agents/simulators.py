@@ -581,10 +581,13 @@ Ah, y tiene que estar lista en 2 semanas porque mi cuñado dijo que puede conseg
                 simulator_temperature = float(os.getenv("SIMULATOR_TEMPERATURE", "0.7"))
                 simulator_max_tokens = int(os.getenv("SIMULATOR_MAX_TOKENS", "300"))
                 llm_started_at = time.perf_counter()
+                
+                # Los simuladores usan Flash (conversaci\u00f3n normal, no an\u00e1lisis profundo)
                 response = await self.llm_provider.generate(
                     messages=messages,
                     temperature=simulator_temperature,
                     max_tokens=simulator_max_tokens,
+                    is_code_analysis=False  # Simuladores usan Flash
                 )
                 logger.info(
                     "Simulator received LLM response",
@@ -880,7 +883,8 @@ Responde SOLO con la pregunta, sin preambles ni explicaciones."""
             response = await self.llm_provider.generate(
                 messages=messages,
                 temperature=0.8,  # Alta creatividad para preguntas variadas
-                max_tokens=300
+                max_tokens=300,
+                is_code_analysis=False  # Simuladores usan Flash
             )
 
             logger.info(
@@ -979,7 +983,8 @@ Responde SOLO en formato JSON:
             response = await self.llm_provider.generate(
                 messages=messages,
                 temperature=0.3,  # Baja temperatura para evaluación consistente
-                max_tokens=400
+                max_tokens=400,
+                is_code_analysis=False  # Simuladores usan Flash
             )
 
             # Parse JSON response with explicit error handling
@@ -1106,7 +1111,8 @@ Responde SOLO con el feedback, sin formato JSON."""
                 response = await self.llm_provider.generate(
                     messages=messages,
                     temperature=0.6,
-                    max_tokens=300
+                    max_tokens=300,
+                    is_code_analysis=False  # Simuladores usan Flash
                 )
 
                 feedback = response.content.strip()
@@ -1218,7 +1224,8 @@ Responde SOLO en formato JSON:
             response = await self.llm_provider.generate(
                 messages=messages,
                 temperature=0.7,
-                max_tokens=600
+                max_tokens=600,
+                is_code_analysis=False  # Simuladores usan Flash
             )
 
             import json
@@ -1396,7 +1403,8 @@ Responde SOLO en formato JSON:
             response = await self.llm_provider.generate(
                 messages=messages,
                 temperature=0.3,
-                max_tokens=500
+                max_tokens=500,
+                is_code_analysis=False  # Simuladores usan Flash
             )
 
             import json

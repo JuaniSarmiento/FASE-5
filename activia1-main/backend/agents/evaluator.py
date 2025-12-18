@@ -6,7 +6,9 @@ que condujo a una solución técnica.
 """
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+import logging
 
+# Asumo que estos imports existen en tu estructura de proyecto
 from ..models.trace import CognitiveTrace, TraceSequence
 from ..models.evaluation import (
     EvaluationReport,
@@ -17,6 +19,7 @@ from ..models.evaluation import (
     CognitivePhase,
 )
 
+logger = logging.getLogger(__name__)
 
 class EvaluadorProcesosAgent:
     """
@@ -36,13 +39,84 @@ class EvaluadorProcesosAgent:
         self.llm_provider = llm_provider
         self.config = config or {}
 
+    async def evaluate_process_async(
+        self,
+        trace_sequence: TraceSequence,
+        code_evolution: Optional[List[Dict[str, Any]]] = None
+    ) -> EvaluationReport:
+        """
+        Evalúa el proceso cognitivo completo de una actividad (versión async con LLM)
+
+        Args:
+            trace_sequence: Secuencia de trazas N4
+            code_evolution: Evolución del código (commits Git)
+
+        Returns:
+            EvaluationReport con análisis completo (usa Gemini Pro si está disponible)
+        """
+        # 1. Análisis del razonamiento (con Gemini Pro si está disponible)
+        if self.llm_provider:
+            reasoning = await self._analyze_reasoning_deep(trace_sequence)
+        else:
+            reasoning = self._analyze_reasoning(trace_sequence)
+
+        # 2. Análisis Git (si disponible)
+        git_analysis = None
+        if code_evolution:
+            git_analysis = self._analyze_git_evolution(code_evolution, trace_sequence)
+
+        # 3. Calcular dependencia de IA
+        ai_dependency = self._calculate_ai_dependency(trace_sequence)
+
+        # 4. Identificar riesgos cognitivos
+        cognitive_risks = self._identify_cognitive_risks(trace_sequence, reasoning)
+
+        # 5. Evaluar dimensiones
+        dimensions = self._evaluate_dimensions(trace_sequence, reasoning)
+
+        # 6. Evaluación general
+        overall_level, overall_score = self._compute_overall_evaluation(dimensions)
+
+        # 7. Generar recomendaciones
+        strengths, improvements = self._identify_strengths_and_improvements(
+            dimensions, reasoning
+        )
+        rec_student, rec_teacher = self._generate_recommendations(
+            dimensions, reasoning, cognitive_risks
+        )
+
+        # Crear reporte
+        report = EvaluationReport(
+            id=f"eval_{trace_sequence.id}",
+            session_id=trace_sequence.session_id,
+            timestamp=datetime.now(),
+            student_id=trace_sequence.student_id,
+            activity_id=trace_sequence.activity_id,
+            reasoning_analysis=reasoning,
+            git_analysis=git_analysis,
+            dimensions=dimensions,
+            ai_dependency_score=ai_dependency,
+            ai_usage_patterns=self._analyze_ai_usage_patterns(trace_sequence),
+            reasoning_map=self._build_reasoning_map(trace_sequence),
+            cognitive_risks=cognitive_risks,
+            overall_competency_level=overall_level,
+            overall_score=overall_score,
+            key_strengths=strengths,
+            improvement_areas=improvements,
+            recommendations_student=rec_student,
+            recommendations_teacher=rec_teacher,
+            trace_sequences_analyzed=1
+        )
+
+        return report
+
     def evaluate_process(
         self,
         trace_sequence: TraceSequence,
         code_evolution: Optional[List[Dict[str, Any]]] = None
     ) -> EvaluationReport:
         """
-        Evalúa el proceso cognitivo completo de una actividad
+        Evalúa el proceso cognitivo completo de una actividad (versión síncrona)
 
         Args:
             trace_sequence: Secuencia de trazas N4
@@ -50,8 +124,11 @@ class EvaluadorProcesosAgent:
 
         Returns:
             EvaluationReport con análisis completo
+            
+        Note:
+            Si hay llm_provider, considera usar evaluate_process_async para análisis profundo
         """
-        # 1. Análisis del razonamiento
+        # 1. Análisis del razonamiento (heurístico)
         reasoning = self._analyze_reasoning(trace_sequence)
 
         # 2. Análisis Git (si disponible)
@@ -128,10 +205,10 @@ class EvaluadorProcesosAgent:
             if t.interaction_type.value == "ai_critique"
         )
 
-        # Analizar coherencia
+        # Analizar coherencia (con LLM si está disponible)
         coherence_score = self._calculate_coherence(traces)
 
-        # Detectar errores
+        # Detectar errores (con análisis profundo si hay LLM)
         conceptual_errors = self._detect_conceptual_errors(traces)
         logical_fallacies = self._detect_logical_fallacies(traces)
 
@@ -153,6 +230,125 @@ class EvaluadorProcesosAgent:
             monitoring_evidence=monitoring_evidence,
             self_explanation_quality=self_explanation_quality
         )
+
+    async def _analyze_reasoning_deep(self, trace_sequence: TraceSequence) -> ReasoningAnalysis:
+        """
+        Análisis profundo de razonamiento usando Gemini Pro
+        
+        Este método usa LLM para análisis cognitivo más sofisticado.
+        Si no hay LLM disponible, usa _analyze_reasoning (heurístico).
+        """
+        if not self.llm_provider:
+            # Fallback a análisis heurístico
+            return self._analyze_reasoning(trace_sequence)
+        
+        try:
+            from ..llm.base import LLMMessage, LLMRole
+            
+            # Construir resumen de las trazas
+            traces_summary = self._build_traces_summary(trace_sequence.traces)
+            
+            system_prompt = """Eres un experto en análisis cognitivo y evaluación de procesos de aprendizaje.
+
+Analiza el proceso de razonamiento del estudiante basándote en sus trazas cognitivas.
+
+Evalúa:
+1. Coherencia del razonamiento
+2. Errores conceptuales (malentendidos fundamentales)
+3. Falacias lógicas (errores en el razonamiento)
+4. Calidad de planificación (0.0-1.0)
+5. Evidencia de monitoreo/autorregulación
+6. Calidad de auto-explicación (0.0-1.0)
+
+Responde en formato JSON:
+{
+  "coherence_score": 0.0-1.0,
+  "conceptual_errors": ["error1", "error2", ...],
+  "logical_fallacies": ["falacia1", "falacia2", ...],
+  "planning_quality": 0.0-1.0,
+  "monitoring_evidence": ["evidencia1", "evidencia2", ...],
+  "self_explanation_quality": 0.0-1.0,
+  "summary": "Resumen del análisis en 2-3 oraciones"
+}"""
+
+            messages = [
+                LLMMessage(role=LLMRole.SYSTEM, content=system_prompt),
+                LLMMessage(
+                    role=LLMRole.USER,
+                    content=f"""Proceso cognitivo del estudiante:
+
+{traces_summary}
+
+Analiza este proceso de razonamiento."""
+                )
+            ]
+            
+            # Usar Gemini Pro para análisis profundo de razonamiento
+            response = await self.llm_provider.generate(
+                messages,
+                temperature=0.3,  # Baja temperatura para análisis consistente
+                max_tokens=800,
+                is_code_analysis=True  # FORZAR Pro model para análisis profundo
+            )
+            
+            # Parsear respuesta
+            import json
+            import re
+            json_match = re.search(r'\{[^}]+\}', response.content, re.DOTALL)
+            if json_match:
+                analysis_data = json.loads(json_match.group())
+                
+                # Reconstruir ReasoningAnalysis con datos del LLM
+                traces = trace_sequence.traces
+                cognitive_path = trace_sequence.get_cognitive_path()
+                phases_completed = self._identify_phases(traces)
+                
+                strategy_changes = sum(
+                    1 for t in traces
+                    if t.interaction_type.value == "strategy_change"
+                )
+                self_corrections = sum(
+                    1 for t in traces
+                    if t.interaction_type.value == "self_correction"
+                )
+                ai_critiques = sum(
+                    1 for t in traces
+                    if t.interaction_type.value == "ai_critique"
+                )
+                
+                return ReasoningAnalysis(
+                    cognitive_path=cognitive_path,
+                    phases_completed=phases_completed,
+                    strategy_changes=strategy_changes,
+                    self_corrections=self_corrections,
+                    ai_critiques=ai_critiques,
+                    coherence_score=analysis_data.get("coherence_score", 0.5),
+                    conceptual_errors=analysis_data.get("conceptual_errors", []),
+                    logical_fallacies=analysis_data.get("logical_fallacies", []),
+                    planning_quality=analysis_data.get("planning_quality", 0.5),
+                    monitoring_evidence=analysis_data.get("monitoring_evidence", []),
+                    self_explanation_quality=analysis_data.get("self_explanation_quality", 0.5)
+                )
+            else:
+                # Si no puede parsear, usar heurístico
+                return self._analyze_reasoning(trace_sequence)
+                
+        except Exception as e:
+            logger.warning(f"Deep reasoning analysis failed, using heuristic: {e}")
+            return self._analyze_reasoning(trace_sequence)
+
+    def _build_traces_summary(self, traces: List[CognitiveTrace]) -> str:
+        """Construye un resumen de las trazas para análisis LLM"""
+        summary_parts = []
+        for i, trace in enumerate(traces[:20], 1):  # Limitar a 20 trazas
+            summary_parts.append(
+                f"{i}. [{trace.interaction_type.value}] {trace.content[:200]}"
+            )
+        
+        if len(traces) > 20:
+            summary_parts.append(f"... y {len(traces) - 20} trazas más")
+        
+        return "\n".join(summary_parts)
 
     def _identify_phases(self, traces: List[CognitiveTrace]) -> List[CognitivePhase]:
         """Identifica qué fases cognitivas se completaron"""

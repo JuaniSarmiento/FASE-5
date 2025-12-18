@@ -47,6 +47,10 @@ class LLMProviderFactory:
     _providers = {
         "mock": MockLLMProvider,
     }
+    
+    # Task type constants for model selection
+    TASK_CONVERSATION = "conversation"
+    TASK_CODE_ANALYSIS = "code_analysis"
 
     @classmethod
     def register_provider(cls, name: str, provider_class):
@@ -155,6 +159,28 @@ class LLMProviderFactory:
 
             if options:
                 config["options"] = options
+        
+        elif provider_type == "gemini":
+            # Gemini requires API key
+            config["api_key"] = os.getenv("GEMINI_API_KEY")
+            if not config["api_key"]:
+                raise ValueError(
+                    "GEMINI_API_KEY environment variable is required for Gemini provider. "
+                    "Get your API key from https://makersuite.google.com/app/apikey"
+                )
+            
+            # Default model (flash for conversations, pro for code analysis)
+            config["model"] = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+            config["temperature"] = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
+            
+            timeout = os.getenv("GEMINI_TIMEOUT")
+            if timeout:
+                config["timeout"] = float(timeout)
+            
+            # Retry configuration
+            max_retries = os.getenv("GEMINI_MAX_RETRIES")
+            if max_retries:
+                config["max_retries"] = int(max_retries)
 
         elif provider_type == "mock":
             # Mock provider doesn't need configuration
@@ -173,5 +199,16 @@ def _register_ollama():
         pass  # Ollama not available
 
 
+# Register Gemini provider (lazy loading)
+def _register_gemini():
+    """Register Gemini provider if available"""
+    try:
+        from .gemini_provider import GeminiProvider
+        LLMProviderFactory.register_provider("gemini", GeminiProvider)
+    except ImportError:
+        pass  # Gemini not available
+
+
 # Auto-register available providers
 _register_ollama()
+_register_gemini()

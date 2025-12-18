@@ -73,8 +73,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
+      # ollama:  # DESACTIVADO: comentado porque ollama está desactivado
+      #   condition: service_started
 
     volumes:
       # Montar código en development para hot-reload (comentar en producción)
@@ -244,72 +244,77 @@ services:
           memory: 128M
 
   # ==========================================================================
-  # Ollama - Local LLM Server con GPU Support
+  # Ollama - DESACTIVADO TEMPORALMENTE
   # ==========================================================================
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ai-native-ollama
-    runtime: nvidia  # CRÍTICO: Usar runtime NVIDIA para GPU
-    ports:
-      - "11434:11434"
-    environment:
-      # Ollama Server
-      - OLLAMA_HOST=0.0.0.0
-      - OLLAMA_KEEP_ALIVE=${OLLAMA_SERVER_KEEP_ALIVE:-24h}
-      
-      # NVIDIA GPU Support
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      
-      # GPU Memory Management
-      - OLLAMA_GPU_MEMORY_FRACTION=0.85
-      - OLLAMA_MAX_LOADED_MODELS=1
-      
-      # Performance Tuning
-      - OLLAMA_FLASH_ATTENTION=1
-      - OLLAMA_NUM_PARALLEL=1
-      - OLLAMA_MAX_QUEUE=4
-      - OLLAMA_NUM_CTX=4096
-      - OLLAMA_NUM_THREAD=6
-      - OLLAMA_DEBUG=1
-      
-    volumes:
-      # Volumen persistente para modelos de Ollama
-      - ollama_data:/root/.ollama
-    networks:
-      - ai-native-network
-    restart: unless-stopped
-
-    # FIX 5.3: Improved health check for Ollama
-    # FIX 4.4: Increase start_period to 300s (Phi-3 takes 2-5 min to download ~2GB)
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
-      interval: 30s
-      timeout: 15s
-      retries: 5
-      start_period: 300s
-
-    # Resource limits with GPU support
-    deploy:
-      resources:
-        limits:
-          memory: 12G
-          cpus: '6.0'
-        reservations:
-          memory: 4G
-          cpus: '2.0'
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu, compute, utility]
-
-    # FIX 4.10 Cortez3: Add log rotation for Ollama
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "200m"
-        max-file: "5"
-        labels: "service=ai-native-ollama"
+  # NOTA: Ollama comentado porque:
+  #   1. Requiere NVIDIA runtime que puede no estar disponible
+  #   2. Sistema configurado en modo "mock" (sin LLM)
+  #
+  # Para reactivar: descomentar este bloque y configurar LLM_PROVIDER=ollama
+  
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ai-native-ollama
+  #   runtime: nvidia  # CRÍTICO: Usar runtime NVIDIA para GPU
+  #   ports:
+  #     - "11434:11434"
+  #   environment:
+  #     # Ollama Server
+  #     - OLLAMA_HOST=0.0.0.0
+  #     - OLLAMA_KEEP_ALIVE=${OLLAMA_SERVER_KEEP_ALIVE:-24h}
+  #     
+  #     # NVIDIA GPU Support
+  #     - NVIDIA_VISIBLE_DEVICES=all
+  #     - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+  #     
+  #     # GPU Memory Management
+  #     - OLLAMA_GPU_MEMORY_FRACTION=0.85
+  #     - OLLAMA_MAX_LOADED_MODELS=1
+  #     
+  #     # Performance Tuning
+  #     - OLLAMA_FLASH_ATTENTION=1
+  #     - OLLAMA_NUM_PARALLEL=1
+  #     - OLLAMA_MAX_QUEUE=4
+  #     - OLLAMA_NUM_CTX=4096
+  #     - OLLAMA_NUM_THREAD=6
+  #     - OLLAMA_DEBUG=1
+  #     
+  #   volumes:
+  #     # Volumen persistente para modelos de Ollama
+  #     - ollama_data:/root/.ollama
+  #   networks:
+  #     - ai-native-network
+  #   restart: unless-stopped
+  #   # FIX 5.3: Improved health check for Ollama
+  #   # FIX 4.4: Increase start_period to 300s (Phi-3 takes 2-5 min to download ~2GB)
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+  #     interval: 30s
+  #     timeout: 15s
+  #     retries: 5
+  #     start_period: 300s
+  #
+  #   # Resource limits with GPU support
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 12G
+  #         cpus: '6.0'
+  #       reservations:
+  #         memory: 4G
+  #         cpus: '2.0'
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu, compute, utility]
+  #
+  #   # FIX 4.10 Cortez3: Add log rotation for Ollama
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "200m"
+  #       max-file: "5"
+  #       labels: "service=ai-native-ollama"
 
   # ==========================================================================
   # pgAdmin (opcional) - Administración de PostgreSQL

@@ -5,8 +5,11 @@ Captura y reconstruye el proceso completo de razonamiento híbrido humano-IA
 """
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+import json
+import re
 
 from ..models.trace import CognitiveTrace, TraceLevel, TraceSequence, InteractionType
+from ..llm.base import LLMMessage, LLMRole
 
 
 class TrazabilidadN4Agent:
@@ -389,6 +392,75 @@ class TrazabilidadN4Agent:
             "recommendation": self._generate_justification_recommendation(justification_ratio) if alert_level else None
         }
 
+    async def _analyze_cognitive_path_with_llm(self, sequence: TraceSequence) -> Optional[Dict[str, Any]]:
+        """Usa LLM para análisis profundo del camino cognitivo"""
+        if not self.llm_provider:
+            return None
+
+        # Construir resumen de trazas
+        traces_summary = self._build_traces_summary_for_llm(sequence.traces[:20])
+
+        system_prompt = """Eres un experto en análisis cognitivo de procesos de aprendizaje.
+        
+Analiza el proceso de razonamiento del estudiante e identifica:
+        1. Fases cognitivas (exploración, planificación, implementación, validación)
+        2. Estrategias de resolución utilizadas
+        3. Momentos de cambio de estrategia y por qué
+        4. Calidad del razonamiento (superficial vs profundo)
+        
+        Responde SOLO con JSON en este formato:
+        {
+            "phases": [{"phase": "exploración|planificación|implementación|validación", "description": "..."}],
+            "strategies": ["estrategia1", "estrategia2"],
+            "strategy_changes": [{"from": "...", "to": "...", "reason": "..."}],
+            "reasoning_quality": "superficial|moderado|profundo",
+            "insights": ["insight1", "insight2"]
+        }"""
+
+        user_prompt = f"""Analiza el proceso cognitivo del estudiante:
+
+Estudiante: {sequence.student_id}
+Actividad: {sequence.activity_id}
+Duración: {(sequence.end_time - sequence.start_time).total_seconds() if sequence.end_time else 'en curso'} segundos
+
+Trazas del proceso:
+{traces_summary}
+
+Identifica patrones cognitivos, estrategias y calidad del razonamiento."""
+
+        messages = [
+            LLMMessage(role=LLMRole.SYSTEM, content=system_prompt),
+            LLMMessage(role=LLMRole.USER, content=user_prompt)
+        ]
+
+        try:
+            response = await self.llm_provider.generate(
+                messages=messages,
+                temperature=0.4,
+                max_tokens=700,
+                is_code_analysis=False  # Usar Flash para análisis de trazabilidad
+            )
+
+            # Extraer JSON
+            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+            return None
+
+        except Exception as e:
+            print(f"Error en análisis LLM cognitivo: {e}")
+            return None
+
+    def _build_traces_summary_for_llm(self, traces: List[CognitiveTrace]) -> str:
+        """Construye resumen de trazas para análisis LLM"""
+        summary_lines = []
+        for i, trace in enumerate(traces, 1):
+            summary_lines.append(
+                f"{i}. [{trace.interaction_type.value}] {trace.content[:120]}..."
+                + (f" | Justificación: {trace.decision_justification[:50]}..." if trace.decision_justification else "")
+            )
+        return "\n".join(summary_lines)
+
     def _generate_justification_recommendation(self, ratio: float) -> str:
         """Genera recomendación según el ratio de justificación"""
         if ratio < 0.3:
@@ -408,6 +480,37 @@ class TrazabilidadN4Agent:
                 "LEVE: Hay decisiones sin justificar, pero la mayoría están documentadas. "
                 "Reforzar la importancia de justificar todas las decisiones clave."
             )
+
+    async def reconstruct_cognitive_path_async(
+        self,
+        sequence_id: str
+    ) -> Dict[str, Any]:
+        """Versión async que usa LLM para análisis cognitivo profundo"""
+        # Reconstrucción base
+        base_reconstruction = self.reconstruct_cognitive_path(sequence_id)
+        
+        if "error" in base_reconstruction:
+            return base_reconstruction
+
+        sequence = self.get_sequence(sequence_id)
+        if not sequence:
+            return {"error": "Sequence not found"}
+
+        # Análisis LLM (opcional)
+        llm_analysis = None
+        if self.llm_provider:
+            llm_analysis = await self._analyze_cognitive_path_with_llm(sequence)
+
+        # Combinar análisis base + LLM
+        result = base_reconstruction.copy()
+        if llm_analysis:
+            result["llm_cognitive_analysis"] = llm_analysis
+            result["enhanced_phases"] = llm_analysis.get("phases", [])
+            result["identified_strategies"] = llm_analysis.get("strategies", [])
+            result["reasoning_quality"] = llm_analysis.get("reasoning_quality")
+            result["cognitive_insights"] = llm_analysis.get("insights", [])
+
+        return result
 
     def export_for_evaluation(
         self,

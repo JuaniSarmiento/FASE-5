@@ -781,13 +781,24 @@ Esto no es una limitación arbitraria: el objetivo es que desarrolles tu capacid
                 role=LLMRole.SYSTEM,
                 content="""Eres un tutor socrático. Tu objetivo es guiar al estudiante a descubrir la respuesta por sí mismo mediante preguntas orientadoras.
 
-NO des la respuesta directa. Haz preguntas que:
-1. Exploren su comprensión actual
-2. Identifiquen sus suposiciones
-3. Lo guíen a descomponer el problema
-4. Lo ayuden a encontrar la solución por sí mismo
+⚠️ REGLAS ESTRICTAS - NUNCA VIOLAR:
+1. **PROHIBIDO ABSOLUTAMENTE dar código de programación** (ni completo, ni fragmentos, ni pseudocódigo detallado)
+2. **NO des soluciones directas** - Solo haz preguntas que guíen el razonamiento
+3. **NO escribas sintaxis de ningún lenguaje** - Solo conceptos y estrategias de alto nivel
 
-Sé breve y preciso. Máximo 4-5 preguntas."""
+Lo que SÍ puedes hacer:
+- Hacer preguntas que exploren su comprensión actual
+- Identificar sus suposiciones y ayudarlo a cuestionarlas
+- Guiarlo a descomponer el problema conceptualmente
+- Sugerir qué conceptos teóricos revisar
+- Ayudarlo a encontrar la solución por sí mismo mediante razonamiento
+
+Si te piden código directamente, RECHAZA cortésmente y redirige con preguntas:
+- "En vez de darte el código, ayúdame a entender: ¿qué intentaste hasta ahora?"
+- "¿Qué conceptos crees que necesitas aplicar para resolver esto?"
+- "Explícame tu plan en lenguaje natural antes de codificar"
+
+Sé breve y preciso. Máximo 4-5 preguntas por respuesta."""
             )
         ]
         
@@ -815,7 +826,17 @@ Sé breve y preciso. Máximo 4-5 preguntas."""
             )
 
             llm_started_at = time.perf_counter()
-            response = await self.llm.generate(messages, max_tokens=300, temperature=0.7)
+            # Decisión inteligente de modelo (híbrido: keywords + Flash decide)
+            model_decision = await self._decide_model_for_prompt(prompt)
+            use_pro = (model_decision == "pro")
+            
+            # Use Flash model for conversational tutoring (unless Pro is needed)
+            response = await self.llm.generate(
+                messages, 
+                max_tokens=300, 
+                temperature=0.7,
+                is_code_analysis=use_pro  # Pro si Flash decidió que es necesario
+            )
             llm_duration_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
 
             # Log LLM response metadata and preview
@@ -841,6 +862,73 @@ Sé breve y preciso. Máximo 4-5 preguntas."""
             # Circuit Breaker: Fallback cuando Ollama está inaccesible
             return self._get_fallback_socratic_response(prompt, flow_id=flow_id)
 
+    async def _decide_model_for_prompt(self, prompt: str) -> str:
+        """
+        Decide inteligentemente qué modelo usar (Flash o Pro)
+        
+        Enfoque híbrido:
+        1. Primero: Check rápido con keywords (instantáneo)
+        2. Si es obvio que necesita Pro -> usar Pro
+        3. Si es obvio que NO necesita Pro -> usar Flash
+        4. Si es ambiguo -> preguntarle a Flash que decida
+        
+        Args:
+            prompt: La consulta del usuario
+            
+        Returns:
+            "pro" o "flash" (nombre del modelo a usar)
+        """
+        # Keywords obvios que requieren Pro (análisis profundo)
+        PRO_KEYWORDS = [
+            'complejidad', 'complexity', 'big o', 'algoritmo complejo',
+            'optimizar algoritmo', 'optimize algorithm', 'refactor',
+            'arquitectura', 'architecture', 'diseño de sistema',
+            'patrones de diseño', 'design patterns', 'solid principles',
+            'analizar código', 'analyze code', 'revisar implementación',
+            'debugging avanzado', 'advanced debug'
+        ]
+        
+        # Keywords obvios que NO requieren Pro (conversación simple)
+        FLASH_KEYWORDS = [
+            '¿qué es', 'what is', 'explícame', 'explain',
+            'hola', 'hello', 'ayuda', 'help',
+            'gracias', 'thanks', 'entiendo', 'understand'
+        ]
+        
+        prompt_lower = prompt.lower()
+        
+        # 1. Check rápido: ¿Obviamente necesita Pro?
+        if any(keyword in prompt_lower for keyword in PRO_KEYWORDS):
+            logger.info(f"Quick decision: Using Pro (matched keyword)")
+            return "pro"
+        
+        # 2. Check rápido: ¿Obviamente NO necesita Pro?
+        if any(keyword in prompt_lower for keyword in FLASH_KEYWORDS):
+            logger.info(f"Quick decision: Using Flash (matched simple keyword)")
+            return "flash"
+        
+        # 3. Caso ambiguo: Preguntarle a Flash que analice
+        # Solo si es Gemini provider (que soporta analyze_complexity)
+        if hasattr(self.llm, 'analyze_complexity'):
+            try:
+                analysis = await self.llm.analyze_complexity(prompt)
+                decision = "pro" if analysis["needs_pro"] else "flash"
+                logger.info(
+                    f"Smart decision by Flash: Using {decision}",
+                    extra={
+                        "reason": analysis["reason"],
+                        "confidence": analysis["confidence"]
+                    }
+                )
+                return decision
+            except Exception as e:
+                logger.warning(f"Flash analysis failed: {e}, defaulting to Flash")
+                return "flash"
+        
+        # 4. Fallback: usar Flash por defecto (más económico)
+        logger.info("Default decision: Using Flash")
+        return "flash"
+
     async def _generate_conceptual_explanation(
         self,
         prompt: str,
@@ -859,11 +947,20 @@ Sé breve y preciso. Máximo 4-5 preguntas."""
                 role=LLMRole.SYSTEM,
                 content="""Eres un tutor pedagógico. Explica conceptos fundamentales de manera clara y didáctica.
 
+⚠️ REGLA CRÍTICA:
+**NUNCA proporciones código de programación.** Solo explica conceptos, estrategias y razonamientos.
+
 Estructura tu explicación:
-1. Concepto clave (definición simple)
+1. Concepto clave (definición simple en lenguaje natural)
 2. Principio fundamental (por qué es importante)
-3. Ejemplo concreto y simple
-4. Aplicación práctica
+3. Ejemplo conceptual (SIN código, solo la idea)
+4. Aplicación práctica (cómo pensar el problema, no cómo implementarlo)
+
+Si te preguntan por código específico:
+- Explica el CONCEPTO detrás de lo que necesitan
+- Describe la ESTRATEGIA de alto nivel
+- Sugiere QUÉ buscar en la documentación
+- NO escribas sintaxis de ningún lenguaje
 
 Usa markdown para formato. Sé claro y conciso (máximo 200 palabras)."""
             )
@@ -892,7 +989,16 @@ Usa markdown para formato. Sé claro y conciso (máximo 200 palabras)."""
             )
 
             llm_started_at = time.perf_counter()
-            response = await self.llm.generate(messages, max_tokens=400, temperature=0.7)
+            # Decisión inteligente: keywords rápidos + Flash analiza si es ambiguo
+            model_decision = await self._decide_model_for_prompt(prompt)
+            use_pro = (model_decision == "pro")
+            
+            response = await self.llm.generate(
+                messages, 
+                max_tokens=400, 
+                temperature=0.7,
+                is_code_analysis=use_pro
+            )
             llm_duration_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
 
             try:
@@ -933,15 +1039,26 @@ Usa markdown para formato. Sé claro y conciso (máximo 200 palabras)."""
         messages = [
             LLMMessage(
                 role=LLMRole.SYSTEM,
-                content="""Eres un tutor que da pistas graduadas. NO des la solución completa.
+                content="""Eres un tutor que da pistas graduadas. NO des la solución completa ni código.
 
-Proporciona 3-4 pistas que:
-1. Sugieran cómo descomponer el problema
-2. Mencionen conceptos/estructuras relevantes
-3. Indiquen casos a considerar
-4. Sugieran un próximo paso concreto
+⚠️ PROHIBIDO ESTRICTAMENTE:
+- Escribir código funcional (ni completo, ni parcial)
+- Dar pseudocódigo detallado con sintaxis
+- Proporcionar implementaciones directas
 
-Cada pista debe acercar al estudiante a la solución sin dársela directamente."""
+Proporciona 3-4 pistas CONCEPTUALES que:
+1. Sugieran cómo descomponer el problema (en ideas, no en código)
+2. Mencionen conceptos/estructuras relevantes (nombres, no sintaxis)
+3. Indiquen casos a considerar (situaciones, no implementación)
+4. Sugieran un próximo paso de RAZONAMIENTO (pensar, no codificar)
+
+Ejemplo de pista BUENA:
+✅ "Pensá en qué estructura de datos te permite acceso rápido por clave"
+
+Ejemplo de pista MALA (NO hacer):
+❌ "Usá un HashMap y hacé: map.put(key, value)"
+
+Cada pista debe acercar al estudiante a la solución conceptual sin dársela directamente."""
             )
         ]
         
@@ -968,7 +1085,16 @@ Cada pista debe acercar al estudiante a la solución sin dársela directamente."
             )
 
             llm_started_at = time.perf_counter()
-            response = await self.llm.generate(messages, max_tokens=350, temperature=0.7)
+            # Decisión inteligente de modelo
+            model_decision = await self._decide_model_for_prompt(prompt)
+            use_pro = (model_decision == "pro")
+            
+            response = await self.llm.generate(
+                messages, 
+                max_tokens=350, 
+                temperature=0.7,
+                is_code_analysis=use_pro
+            )
             llm_duration_ms = round((time.perf_counter() - llm_started_at) * 1000, 2)
 
             try:

@@ -5,9 +5,12 @@ Supervisa, detecta y clasifica riesgos cognitivos, éticos y epistémicos
 """
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+import json
+import re
 
 from ..models.trace import CognitiveTrace, TraceSequence, InteractionType
 from ..models.risk import Risk, RiskType, RiskLevel, RiskDimension, RiskReport
+from ..llm.base import LLMMessage, LLMRole
 
 
 class AnalistaRiesgoAgent:
@@ -72,6 +75,72 @@ class AnalistaRiesgoAgent:
         report.trends = self._analyze_trends(trace_sequence)
 
         return report
+
+    async def analyze_session_async(
+        self,
+        trace_sequence: TraceSequence,
+        context: Optional[Dict[str, Any]] = None
+    ) -> RiskReport:
+        """Versión async que incluye análisis LLM avanzado"""
+        # Análisis base (síncrono)
+        report = self.analyze_session(trace_sequence, context)
+
+        # Análisis avanzado con LLM (opcional)
+        if self.llm_provider:
+            llm_analysis = await self._analyze_risks_with_llm(trace_sequence)
+            if llm_analysis:
+                # Agregar insights del LLM al reporte
+                report.metadata = report.metadata or {}
+                report.metadata["llm_analysis"] = llm_analysis
+
+                # Agregar riesgos detectados por LLM si son relevantes
+                for risk_data in llm_analysis.get("risks_detected", []):
+                    if risk_data.get("severity") in ["high", "medium"]:
+                        # Agregar como riesgo adicional
+                        risk = Risk(
+                            id=f"risk_llm_{trace_sequence.id}_{len(report.risks)}",
+                            session_id=trace_sequence.session_id,
+                            student_id=trace_sequence.student_id,
+                            activity_id=trace_sequence.activity_id,
+                            risk_type=self._map_llm_risk_type(risk_data.get("type")),
+                            risk_level=self._map_llm_severity(risk_data.get("severity")),
+                            dimension=self._map_llm_dimension(risk_data.get("type")),
+                            description=f"[Análisis LLM] {risk_data.get('description')}",
+                            evidence=[risk_data.get("evidence", "")],
+                            trace_ids=[],
+                            recommendations=llm_analysis.get("recommendations", [])
+                        )
+                        report.add_risk(risk)
+
+        return report
+
+    def _map_llm_risk_type(self, llm_type: str) -> RiskType:
+        """Mapea tipo de riesgo del LLM a RiskType"""
+        mapping = {
+            "cognitive": RiskType.COGNITIVE_DELEGATION,
+            "ethical": RiskType.ACADEMIC_INTEGRITY,
+            "epistemic": RiskType.UNCRITICAL_ACCEPTANCE
+        }
+        return mapping.get(llm_type, RiskType.COGNITIVE_DELEGATION)
+
+    def _map_llm_severity(self, severity: str) -> RiskLevel:
+        """Mapea severidad del LLM a RiskLevel"""
+        mapping = {
+            "low": RiskLevel.LOW,
+            "medium": RiskLevel.MEDIUM,
+            "high": RiskLevel.HIGH,
+            "critical": RiskLevel.CRITICAL
+        }
+        return mapping.get(severity, RiskLevel.MEDIUM)
+
+    def _map_llm_dimension(self, llm_type: str) -> RiskDimension:
+        """Mapea tipo del LLM a RiskDimension"""
+        mapping = {
+            "cognitive": RiskDimension.COGNITIVE,
+            "ethical": RiskDimension.ETHICAL,
+            "epistemic": RiskDimension.EPISTEMIC
+        }
+        return mapping.get(llm_type, RiskDimension.COGNITIVE)
 
     def _analyze_cognitive_risks(
         self,
@@ -499,6 +568,71 @@ class AnalistaRiesgoAgent:
         )
 
         return with_justification / len(traces)
+
+    async def _analyze_risks_with_llm(self, trace_sequence: TraceSequence) -> Optional[Dict[str, Any]]:
+        """Usa LLM para análisis avanzado de patrones de riesgo"""
+        if not self.llm_provider:
+            return None
+
+        # Construir resumen de trazas
+        traces_summary = self._build_traces_summary_for_risk(trace_sequence.traces[:15])
+
+        system_prompt = """Eres un experto en análisis de riesgos cognitivos y éticos en educación.
+        
+Analiza los patrones de comportamiento del estudiante e identifica:
+        1. Riesgos cognitivos (delegación, dependencia excesiva)
+        2. Riesgos éticos (posible plagio, integridad académica)
+        3. Riesgos epistémicos (aceptación acrítica)
+        
+        Responde SOLO con JSON en este formato:
+        {
+            "risks_detected": [{"type": "cognitive|ethical|epistemic", "severity": "low|medium|high", "description": "...", "evidence": "..."}],
+            "patterns": ["patrón1", "patrón2"],
+            "recommendations": ["recomendación1", "recomendación2"]
+        }"""
+
+        user_prompt = f"""Analiza esta sesión del estudiante:
+
+Estudiante: {trace_sequence.student_id}
+Actividad: {trace_sequence.activity_id}
+Total interacciones: {len(trace_sequence.traces)}
+
+Trazas:
+{traces_summary}
+
+Identifica riesgos y patrones preocupantes."""
+
+        messages = [
+            LLMMessage(role=LLMRole.SYSTEM, content=system_prompt),
+            LLMMessage(role=LLMRole.USER, content=user_prompt)
+        ]
+
+        try:
+            response = await self.llm_provider.generate(
+                messages=messages,
+                temperature=0.3,
+                max_tokens=600,
+                is_code_analysis=False  # Usar Flash para análisis de riesgos
+            )
+
+            # Extraer JSON
+            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+            return None
+
+        except Exception as e:
+            print(f"Error en análisis LLM de riesgos: {e}")
+            return None
+
+    def _build_traces_summary_for_risk(self, traces: List[CognitiveTrace]) -> str:
+        """Construye resumen de trazas para análisis de riesgos"""
+        summary_lines = []
+        for i, trace in enumerate(traces, 1):
+            summary_lines.append(
+                f"{i}. [{trace.interaction_type.value}] {trace.content[:100]}..."
+            )
+        return "\n".join(summary_lines)
 
     def _generate_overall_assessment(self, report: RiskReport) -> str:
         """Genera evaluación general del perfil de riesgo"""
