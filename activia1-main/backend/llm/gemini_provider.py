@@ -44,8 +44,8 @@ def _get_metrics():
     global _metrics_module
     if _metrics_module is None:
         try:
-            from ..api.monitoring import metrics as m
-            _metrics_module = m
+            from ..api.monitoring.metrics import metrics_accessor
+            _metrics_module = metrics_accessor
         except ImportError:
             _metrics_module = False
     return _metrics_module if _metrics_module else None
@@ -69,9 +69,9 @@ class GeminiProvider(LLMProvider):
         max_retries: Maximum retry attempts (default: 3)
     """
 
-    # Model definitions
-    FLASH_MODEL = "gemini-1.5-flash"
-    PRO_MODEL = "gemini-1.5-pro"
+    # Model definitions (Updated to Gemini 2.5)
+    FLASH_MODEL = "gemini-2.5-flash"
+    PRO_MODEL = "gemini-2.5-pro"
     
     # Base URL for Gemini API
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta"

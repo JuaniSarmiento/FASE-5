@@ -43,7 +43,7 @@ services:
       - LLM_CACHE_MAX_ENTRIES=1000
 
       # LLM Provider - Ollama (contenedor separado)
-      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral:7b-instruct}
       - OLLAMA_TEMPERATURE=${OLLAMA_TEMPERATURE:-0.7}
@@ -52,6 +52,11 @@ services:
       - OLLAMA_NUM_CTX=${OLLAMA_NUM_CTX:-4096}
       - OLLAMA_NUM_THREAD=${OLLAMA_NUM_THREAD:-6}
       - OLLAMA_NUM_GPU=${OLLAMA_NUM_GPU:-99}
+      
+      # Gemini API
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-AIzaSyDxzTCLcsOIYGwrcAvXdRc4kU_h1oJP0hg}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - GEMINI_TEMPERATURE=${GEMINI_TEMPERATURE:-0.7}
 
       # Security (REQUIRED: Set these in .env file, no defaults for security)
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
@@ -66,7 +71,7 @@ services:
       - LOG_LEVEL=INFO
 
       # CORS (includes frontend dev ports and Grafana)
-      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080,http://frontend:80
 
     depends_on:
       postgres:
@@ -109,6 +114,48 @@ services:
         max-size: "100m"
         max-file: "3"
         labels: "service=ai-native-api"
+
+  # ==========================================================================
+  # Frontend - React + Vite Application
+  # ==========================================================================
+  frontend:
+    build:
+      context: ./frontEnd
+      dockerfile: Dockerfile
+    image: ai-native-frontend:latest
+    container_name: ai-native-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - ai-native-network
+    restart: unless-stopped
+    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        labels: "service=ai-native-frontend"
 
   # ==========================================================================
   # PostgreSQL Database

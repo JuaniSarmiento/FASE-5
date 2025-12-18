@@ -129,7 +129,7 @@ class SessionsService extends BaseApiService {
    * @returns SessionResponse con session_id y mensaje de bienvenida
    */
   async createTutor(): Promise<{ session_id: string; welcome_message: string }> {
-    return this.post<{ session_id: string; welcome_message: string }>('/create-tutor');
+    return this.post<{ session_id: string; welcome_message: string }>('/sessions/create-tutor');
   }
 
   /**
@@ -165,7 +165,7 @@ class SessionsService extends BaseApiService {
         cognitive_events?: string[];
         rule_violations?: string[];
       };
-    }, { message: string; student_profile?: Record<string, unknown> }>(`/${sessionId}/interact`, {
+    }, { message: string; student_profile?: Record<string, unknown> }>(`/sessions/${sessionId}/interact`, {
       message,
       student_profile: studentProfile,
     });

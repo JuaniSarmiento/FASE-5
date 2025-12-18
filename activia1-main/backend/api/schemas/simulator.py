@@ -14,7 +14,7 @@ class SimulatorInteractionRequest(BaseModel):
     """Request para interactuar con un simulador"""
     session_id: str = Field(..., description="ID de la sesión activa")
     simulator_type: SimulatorType = Field(..., description="Tipo de simulador")
-    prompt: str = Field(..., min_length=10, max_length=5000, description="Mensaje del estudiante al simulador")
+    prompt: str = Field(..., min_length=1, max_length=5000, description="Mensaje del estudiante al simulador")
 
     context: Optional[Dict[str, Any]] = Field(default=None, description="Contexto adicional de la interacción")
 

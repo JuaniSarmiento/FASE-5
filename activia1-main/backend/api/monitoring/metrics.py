@@ -197,6 +197,21 @@ def _initialize_metrics(registry: CollectorRegistry) -> None:
         registry=registry,
     )
 
+    # 10. LLM - Métricas específicas de LLM (para Gemini y otros providers)
+    _metrics["llm_requests_total"] = Counter(
+        name="ai_native_llm_requests_total",
+        documentation="Total de requests a LLM providers",
+        labelnames=["provider", "model", "status"],
+        registry=registry,
+    )
+
+    _metrics["llm_tokens_total"] = Counter(
+        name="ai_native_llm_tokens_total",
+        documentation="Total de tokens usados en requests LLM",
+        labelnames=["provider", "model", "token_type"],
+        registry=registry,
+    )
+
     logger.info("Initialized %d Prometheus metrics", len(_metrics))
 
 
@@ -621,3 +636,51 @@ def export_metrics() -> tuple[bytes, str]:
     """
     registry = get_metrics_registry()
     return generate_latest(registry), CONTENT_TYPE_LATEST
+
+
+# ============================================================================
+# Acceso Directo a Métricas (para compatibilidad con código legacy)
+# ============================================================================
+
+class _MetricsAccessor:
+    """
+    Helper class para acceder a métricas con sintaxis de atributo.
+    Permite: metrics.llm_requests_total en lugar de _metrics["llm_requests_total"]
+    """
+    @property
+    def llm_requests_total(self):
+        return _metrics.get("llm_requests_total")
+    
+    @property
+    def llm_tokens_total(self):
+        return _metrics.get("llm_tokens_total")
+    
+    @property
+    def interactions_total(self):
+        return _metrics.get("interactions_total")
+    
+    @property
+    def llm_call_duration(self):
+        return _metrics.get("llm_call_duration")
+    
+    @property
+    def cache_hits(self):
+        return _metrics.get("cache_hits")
+    
+    @property
+    def cache_misses(self):
+        return _metrics.get("cache_misses")
+    
+    @property
+    def governance_blocks(self):
+        return _metrics.get("governance_blocks")
+    
+    @property
+    def risks_detected(self):
+        return _metrics.get("risks_detected")
+
+
+# Instancia global para acceso por atributo
+# Uso: from backend.api.monitoring.metrics import metrics_accessor
+# metrics_accessor.llm_requests_total.labels(...).inc()
+metrics_accessor = _MetricsAccessor()

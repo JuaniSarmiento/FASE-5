@@ -12,7 +12,7 @@
 /**
  * Estado final de la evaluación
  */
-export type EvaluationStatus = 'PASS' | 'FAIL' | 'WARNING';
+export type EvaluationStatus = 'PASS' | 'FAIL' | 'WARNING' | 'PARTIAL';
 
 /**
  * Tipo de notificación toast para la UI

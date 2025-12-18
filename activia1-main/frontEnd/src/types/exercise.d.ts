@@ -95,8 +95,6 @@ export interface IExerciseContent {
    */
   hints?: string[];
 }
-  constraints: string[];
-}
 
 /**
  * Test oculto para validación en sandbox
