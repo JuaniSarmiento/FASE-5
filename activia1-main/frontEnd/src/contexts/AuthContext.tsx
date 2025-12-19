@@ -61,15 +61,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (username: string, email: string, password: string, fullName?: string) => {
-    await authService.register({
-      username,
-      email,
-      password,
-      full_name: fullName || '',
-    });
-    // After registration, login to get tokens
-    await login(email, password);
+  const payload: any = {
+    username,
+    email,
+    password,
   };
+  
+  // Solo agregar full_name si NO está vacío
+  if (fullName && fullName.trim() !== '') {
+    payload.full_name = fullName.trim();
+  }
+  
+  await authService.register(payload);
+};
 
   const logout = () => {
     authService.logout();
