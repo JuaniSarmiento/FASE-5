@@ -112,3 +112,37 @@ RESUMEN_*.md
 SPRINT_*.md
 USER_STORIES*.md
 CERTIFICACION_*.md
+GUIA_*.md
+cortez
+cortez1
+cortez2
+cortez3
+cortez4
+cortez5
+cortez6
+cortez7
+cortez8
+cortez10
+cortez11
+cortez12
+cortez14
+cortez16
+cortez19
+cortez20
+cortez21
+cortez22
+cortez24
+cortez25
+cortez27
+DEPLOY_*.md
+QUICKSTART_*.md
+
+# Datos de desarrollo
+postgres-data/
+redis-data/
+ollama-data/
+prometheus-data/
+grafana-data/
+
+# Scripts de verificación
+scripts/verify-deploy.sh
