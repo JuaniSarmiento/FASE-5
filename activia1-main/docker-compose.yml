@@ -42,21 +42,28 @@ services:
       - LLM_CACHE_TTL=3600
       - LLM_CACHE_MAX_ENTRIES=1000
 
-      # LLM Provider - Ollama (contenedor separado)
-      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      # LLM Provider - Mistral API (ACTIVO)
+      - LLM_PROVIDER=${LLM_PROVIDER:-mistral}
+      
+      # Mistral API
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:?MISTRAL_API_KEY is required}
+      - MISTRAL_MODEL=${MISTRAL_MODEL:-mistral-small-latest}
+      - MISTRAL_TEMPERATURE=${MISTRAL_TEMPERATURE:-0.7}
+      - MISTRAL_TIMEOUT=${MISTRAL_TIMEOUT:-60}
+      - MISTRAL_MAX_RETRIES=${MISTRAL_MAX_RETRIES:-3}
+      
+      # Gemini API (Backup)
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_TEMPERATURE=${GEMINI_TEMPERATURE:-0.7}
+      - GEMINI_TIMEOUT=${GEMINI_TIMEOUT:-30}
+      - GEMINI_MAX_RETRIES=${GEMINI_MAX_RETRIES:-3}
+      
+      # Ollama (Desactivado)
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral:7b-instruct}
       - OLLAMA_TEMPERATURE=${OLLAMA_TEMPERATURE:-0.7}
       - OLLAMA_TIMEOUT=${OLLAMA_TIMEOUT:-180}
-      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-24h}
-      - OLLAMA_NUM_CTX=${OLLAMA_NUM_CTX:-4096}
-      - OLLAMA_NUM_THREAD=${OLLAMA_NUM_THREAD:-6}
-      - OLLAMA_NUM_GPU=${OLLAMA_NUM_GPU:-99}
-      
-      # Gemini API
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-AIzaSyDxzTCLcsOIYGwrcAvXdRc4kU_h1oJP0hg}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
-      - GEMINI_TEMPERATURE=${GEMINI_TEMPERATURE:-0.7}
 
       # Security (REQUIRED: Set these in .env file, no defaults for security)
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}

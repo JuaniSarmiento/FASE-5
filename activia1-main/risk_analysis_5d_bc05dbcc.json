@@ -1,0 +1,71 @@
+{
+  "session_id": "bc05dbcc-99e1-49dd-bec1-ec604a634d1c",
+  "overall_score": 15,
+  "risk_level": "medium",
+  "dimensions": {
+    "cognitive": {
+      "score": 3,
+      "level": "medium",
+      "indicators": [
+        "Múltiples consultas similares",
+        "Dependencia de respuestas IA"
+      ]
+    },
+    "ethical": {
+      "score": 2,
+      "level": "low",
+      "indicators": [
+        "Sin indicadores de plagio detectados"
+      ]
+    },
+    "epistemic": {
+      "score": 4,
+      "level": "medium",
+      "indicators": [
+        "Consultas superficiales",
+        "Falta de profundización"
+      ]
+    },
+    "technical": {
+      "score": 3,
+      "level": "medium",
+      "indicators": [
+        "Uso de código sin modificación"
+      ]
+    },
+    "governance": {
+      "score": 3,
+      "level": "medium",
+      "indicators": [
+        "Uso extensivo de IA no justificado"
+      ]
+    }
+  },
+  "top_risks": [
+    {
+      "dimension": "epistemic",
+      "description": "Conocimiento superficial detectado",
+      "severity": "medium",
+      "mitigation": "Solicitar explicaciones conceptuales detalladas"
+    },
+    {
+      "dimension": "cognitive",
+      "description": "Alta dependencia de IA",
+      "severity": "medium",
+      "mitigation": "Reducir asistencia y promover pensamiento autónomo"
+    },
+    {
+      "dimension": "technical",
+      "description": "Código sin personalización",
+      "severity": "low",
+      "mitigation": "Solicitar adaptación del código a contexto específico"
+    }
+  ],
+  "recommendations": [
+    "Reducir gradualmente el nivel de ayuda de IA",
+    "Solicitar justificaciones conceptuales antes de proporcionar soluciones",
+    "Fomentar debugging manual antes de consultar IA",
+    "Implementar checkpoints de comprensión conceptual",
+    "Documentar el proceso de razonamiento explícitamente"
+  ]
+}

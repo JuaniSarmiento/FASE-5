@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test IA Frontend</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .output {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+        .success {
+            border-left-color: #4CAF50;
+            background: #e8f5e9;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        textarea {
+            min-height: 80px;
+            font-family: Arial, sans-serif;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test de IA - Frontend</h1>
+        
+        <div class="test-section">
+            <h3>1️⃣ Verificar Backend</h3>
+            <button onclick="testHealth()">Probar Health Endpoint</button>
+            <div id="health-output" class="output" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2️⃣ Crear Sesión</h3>
+            <button onclick="createSession()">Crear Sesión de Prueba</button>
+            <div id="session-output" class="output" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3️⃣ Probar IA Gemini</h3>
+            <textarea id="prompt" placeholder="Escribe tu pregunta aquí...">Hola, necesito ayuda para entender qué es una función en Python</textarea>
+            <button onclick="testIA()" id="test-ia-btn">Enviar a IA</button>
+            <div id="ia-output" class="output" style="display:none;"></div>
+        </div>
+
+        <div id="status" class="status" style="display:none;"></div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v1';
+        let sessionId = null;
+
+        function showStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + (isError ? 'error' : 'success');
+            status.style.display = 'block';
+        }
+
+        function showOutput(elementId, content, isError = false) {
+            const output = document.getElementById(elementId);
+            output.textContent = content;
+            output.className = 'output ' + (isError ? 'error' : 'success');
+            output.style.display = 'block';
+        }
+
+        async function testHealth() {
+            try {
+                showStatus('Probando conexión con backend...');
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                showOutput('health-output', JSON.stringify(data, null, 2));
+                showStatus('✅ Backend conectado correctamente');
+            } catch (error) {
+                showOutput('health-output', `Error: ${error.message}`, true);
+                showStatus('❌ Error conectando con backend', true);
+            }
+        }
+
+        async function createSession() {
+            try {
+                showStatus('Creando sesión...');
+                const response = await fetch(`${API_BASE}/sessions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        student_id: 'test_student_' + Date.now(),
+                        activity_id: 'test_activity',
+                        mode: 'TUTOR'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.id) {
+                    sessionId = data.data.id;
+                    showOutput('session-output', JSON.stringify(data, null, 2));
+                    showStatus(`✅ Sesión creada: ${sessionId.substring(0, 8)}...`);
+                } else {
+                    throw new Error('No se pudo crear la sesión');
+                }
+            } catch (error) {
+                showOutput('session-output', `Error: ${error.message}`, true);
+                showStatus('❌ Error creando sesión', true);
+            }
+        }
+
+        async function testIA() {
+            if (!sessionId) {
+                alert('Primero debes crear una sesión (paso 2)');
+                return;
+            }
+
+            const prompt = document.getElementById('prompt').value;
+            if (!prompt.trim()) {
+                alert('Por favor escribe una pregunta');
+                return;
+            }
+
+            try {
+                const btn = document.getElementById('test-ia-btn');
+                btn.disabled = true;
+                btn.textContent = '⏳ Procesando con Gemini...';
+                
+                showStatus('Enviando pregunta a Gemini...');
+
+                const response = await fetch(`${API_BASE}/interactions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        prompt: prompt
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const output = `
+=== RESPUESTA DE GEMINI ===
+
+${data.data.response}
+
+=== METADATA ===
+Agent: ${data.data.agent_used}
+Estado Cognitivo: ${data.data.cognitive_state_detected || 'N/A'}
+IA Involvement: ${data.data.ai_involvement || 0}
+Bloqueado: ${data.data.blocked}
+Tokens: ${data.data.tokens_used || 'N/A'}
+                    `.trim();
+                    
+                    showOutput('ia-output', output);
+                    showStatus('✅ IA respondió correctamente con Gemini');
+                } else {
+                    throw new Error('Respuesta inesperada del servidor');
+                }
+                
+                btn.disabled = false;
+                btn.textContent = 'Enviar a IA';
+            } catch (error) {
+                showOutput('ia-output', `Error: ${error.message}`, true);
+                showStatus('❌ Error procesando con IA', true);
+                
+                const btn = document.getElementById('test-ia-btn');
+                btn.disabled = false;
+                btn.textContent = 'Enviar a IA';
+            }
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testHealth();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

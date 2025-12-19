@@ -122,7 +122,7 @@ export default function DashboardPage() {
     },
     {
       title: 'Practicar Código',
-      description: 'Resuelve ejercicios de programación',
+      description: 'Practica Python, Java y Spring Boot con IA',
       icon: Code,
       path: '/exercises',
       gradient: 'from-green-500 to-emerald-600'

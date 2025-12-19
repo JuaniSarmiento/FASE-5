@@ -182,6 +182,27 @@ class LLMProviderFactory:
             if max_retries:
                 config["max_retries"] = int(max_retries)
 
+        elif provider_type == "mistral":
+            # Mistral requires API key
+            config["api_key"] = os.getenv("MISTRAL_API_KEY")
+            if not config["api_key"]:
+                raise ValueError(
+                    "MISTRAL_API_KEY environment variable is required for Mistral provider."
+                )
+            
+            # Default model
+            config["model"] = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+            config["temperature"] = float(os.getenv("MISTRAL_TEMPERATURE", "0.7"))
+            
+            timeout = os.getenv("MISTRAL_TIMEOUT")
+            if timeout:
+                config["timeout"] = float(timeout)
+            
+            # Retry configuration
+            max_retries = os.getenv("MISTRAL_MAX_RETRIES")
+            if max_retries:
+                config["max_retries"] = int(max_retries)
+        
         elif provider_type == "mock":
             # Mock provider doesn't need configuration
             pass
@@ -209,6 +230,17 @@ def _register_gemini():
         pass  # Gemini not available
 
 
+# Register Mistral provider (lazy loading)
+def _register_mistral():
+    """Register Mistral provider if available"""
+    try:
+        from .mistral_provider import MistralProvider
+        LLMProviderFactory.register_provider("mistral", MistralProvider)
+    except ImportError:
+        pass  # Mistral not available
+
+
 # Auto-register available providers
 _register_ollama()
 _register_gemini()
+_register_mistral()

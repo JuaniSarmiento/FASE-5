@@ -148,85 +148,184 @@ async def analyze_risks_5d(
             }
         )
     
-    # Preparar contexto para Ollama
+    # Preparar contexto detallado para análisis con Mistral AI
+    # Extraer prompts del usuario y respuestas de la IA
+    conversation_history = []
+    for i, interaction in enumerate(interactions[-10:], 1):  # Últimas 10 interacciones
+        # Extraer el prompt del usuario (puede estar en content o metadata)
+        user_prompt = ""
+        ai_response = ""
+        
+        if hasattr(interaction, 'metadata') and interaction.metadata:
+            if isinstance(interaction.metadata, str):
+                try:
+                    meta = json.loads(interaction.metadata)
+                    user_prompt = meta.get('prompt', '')
+                except:
+                    pass
+            elif isinstance(interaction.metadata, dict):
+                user_prompt = interaction.metadata.get('prompt', '')
+        
+        # El content suele ser la respuesta de la IA
+        if hasattr(interaction, 'content') and interaction.content:
+            ai_response = interaction.content[:300]  # Primeros 300 chars
+        
+        if not user_prompt and hasattr(interaction, 'prompt'):
+            user_prompt = interaction.prompt
+        
+        conversation_history.append({
+            "num": i,
+            "student_question": user_prompt[:200] if user_prompt else "[Sin prompt capturado]",
+            "ai_response_preview": ai_response[:150] if ai_response else "[Sin respuesta]",
+            "interaction_type": getattr(interaction, 'interaction_type', 'unknown')
+        })
+    
     context = {
         "session_id": session_id,
         "student_id": session.student_id,
         "activity_id": session.activity_id,
         "total_interactions": len(interactions),
-        "interactions_summary": [
-            {
-                "content": i.content[:200] if i.content else "",
-                "cognitive_state": i.cognitive_state if hasattr(i, 'cognitive_state') else "unknown",
-                "ai_involvement": i.ai_involvement if hasattr(i, 'ai_involvement') else 0.0,
-                "interaction_type": i.interaction_type if hasattr(i, 'interaction_type') else "unknown"
-            }
-            for i in interactions[-10:]  # Últimas 10 interacciones
-        ]
+        "conversation_history": conversation_history
     }
     
-    # FIX 3.1: Use injected LLM provider (async-compatible) instead of direct factory call
-    # llm_provider is already injected via Depends(get_llm_provider)
+    # Construir prompt mejorado para Mistral AI
+    conversation_text = "\n\n".join([
+        f"Interacción {conv['num']}:\n"
+        f"  Estudiante pregunta: {conv['student_question']}\n"
+        f"  Tipo: {conv['interaction_type']}\n"
+        f"  Vista previa respuesta IA: {conv['ai_response_preview']}"
+        for conv in conversation_history
+    ])
 
-    prompt = f"""Analiza los riesgos en 5 dimensiones para esta sesión educativa con IA:
+    prompt = f"""Eres un experto analista de riesgos educativos. Analiza la siguiente sesión de tutoría con IA y evalúa los riesgos en 5 dimensiones.
 
-CONTEXTO:
-- Sesión ID: {session_id}
+CONTEXTO DE LA SESIÓN:
 - Estudiante: {session.student_id}
-- Total interacciones: {len(interactions)}
-- Últimas interacciones: {len(context['interactions_summary'])}
+- Actividad: {session.activity_id}
+- Total de interacciones: {len(interactions)}
 
-DIMENSIONES A ANALIZAR:
-1. COGNITIVA: Pérdida de pensamiento crítico, dependencia excesiva de IA
-2. ÉTICA: Plagio, falta de atribución, dishonestidad académica
-3. EPISTÉMICA: Conocimiento superficial, falta de fundamentos
-4. TÉCNICA: Código sin entender, copy-paste, falta de debugging manual
-5. GOBERNANZA: Violación de políticas, uso no autorizado
+CONVERSACIÓN ANALIZADA (últimas {len(conversation_history)} interacciones):
+{conversation_text}
 
-Para cada dimensión, evalúa:
-- Score (0-10, donde 10 es máximo riesgo)
-- Level (low/medium/high/critical)
-- Indicators (3-5 indicadores específicos observados)
+INSTRUCCIONES DE ANÁLISIS:
 
-Luego identifica los TOP 3 riesgos detectados con:
-- Dimension
-- Description
-- Severity (low/medium/high/critical)
-- Mitigation (cómo mitigarlo)
+Evalúa cada dimensión de riesgo basándote en las interacciones reales observadas:
 
-Finalmente, proporciona 5 recomendaciones de mitigación.
+1. **COGNITIVA** (0-10): 
+   - ¿El estudiante delega completamente en la IA?
+   - ¿Muestra pensamiento crítico o solo pide soluciones?
+   - ¿Hace preguntas de seguimiento profundas?
+   
+2. **ÉTICA** (0-10):
+   - ¿Hay indicios de querer copiar sin atribución?
+   - ¿El estudiante parece honesto sobre su nivel de conocimiento?
+   
+3. **EPISTÉMICA** (0-10):
+   - ¿Las preguntas muestran comprensión superficial?
+   - ¿Busca entender conceptos o solo obtener respuestas?
+   - ¿Profundiza en los fundamentos teóricos?
+   
+4. **TÉCNICA** (0-10):
+   - ¿Pide código completo sin intentar entenderlo?
+   - ¿Hace preguntas sobre debugging o solo pide soluciones?
+   - ¿Muestra intención de adaptar el código?
+   
+5. **GOBERNANZA** (0-10):
+   - ¿Usa la IA de forma responsable?
+   - ¿Hay uso excesivo sin justificación educativa?
 
-INTERACCIONES RECIENTES:
-{context['interactions_summary']}
+Para CADA dimensión proporciona:
+- **score**: Número de 0 a 10 (0=sin riesgo, 10=riesgo crítico)
+- **level**: "low" (0-3), "medium" (4-6), "high" (7-8), "critical" (9-10)
+- **indicators**: Array de 3-5 indicadores ESPECÍFICOS observados en esta conversación
 
-Responde SOLO en formato JSON válido:
+Luego identifica los TOP 3 riesgos más importantes con estrategias concretas de mitigación.
+
+FORMATO DE RESPUESTA (SOLO JSON, sin texto adicional):
+
 {{
-  "cognitive": {{"score": 0-10, "level": "low/medium/high/critical", "indicators": ["...", "..."]}},
-  "ethical": {{"score": 0-10, "level": "low/medium/high/critical", "indicators": ["...", "..."]}},
-  "epistemic": {{"score": 0-10, "level": "low/medium/high/critical", "indicators": ["...", "..."]}},
-  "technical": {{"score": 0-10, "level": "low/medium/high/critical", "indicators": ["...", "..."]}},
-  "governance": {{"score": 0-10, "level": "low/medium/high/critical", "indicators": ["...", "..."]}},
+  "cognitive": {{
+    "score": [número 0-10],
+    "level": "[low/medium/high/critical]",
+    "indicators": ["[indicador específico 1]", "[indicador 2]", "[indicador 3]"]
+  }},
+  "ethical": {{
+    "score": [número 0-10],
+    "level": "[low/medium/high/critical]",
+    "indicators": ["[indicador específico 1]", "[indicador 2]", "[indicador 3]"]
+  }},
+  "epistemic": {{
+    "score": [número 0-10],
+    "level": "[low/medium/high/critical]",
+    "indicators": ["[indicador específico 1]", "[indicador 2]", "[indicador 3]"]
+  }},
+  "technical": {{
+    "score": [número 0-10],
+    "level": "[low/medium/high/critical]",
+    "indicators": ["[indicador específico 1]", "[indicador 2]", "[indicador 3]"]
+  }},
+  "governance": {{
+    "score": [número 0-10],
+    "level": "[low/medium/high/critical]",
+    "indicators": ["[indicador específico 1]", "[indicador 2]", "[indicador 3]"]
+  }},
   "top_risks": [
-    {{"dimension": "...", "description": "...", "severity": "...", "mitigation": "..."}},
-    {{"dimension": "...", "description": "...", "severity": "...", "mitigation": "..."}},
-    {{"dimension": "...", "description": "...", "severity": "...", "mitigation": "..."}}
+    {{
+      "dimension": "[cognitive/ethical/epistemic/technical/governance]",
+      "description": "[descripción del riesgo detectado]",
+      "severity": "[low/medium/high/critical]",
+      "mitigation": "[estrategia concreta de mitigación]"
+    }},
+    {{
+      "dimension": "[cognitive/ethical/epistemic/technical/governance]",
+      "description": "[descripción del riesgo detectado]",
+      "severity": "[low/medium/high/critical]",
+      "mitigation": "[estrategia concreta de mitigación]"
+    }},
+    {{
+      "dimension": "[cognitive/ethical/epistemic/technical/governance]",
+      "description": "[descripción del riesgo detectado]",
+      "severity": "[low/medium/high/critical]",
+      "mitigation": "[estrategia concreta de mitigación]"
+    }}
   ],
-  "recommendations": ["...", "...", "...", "...", "..."]
+  "recommendations": [
+    "[recomendación práctica 1]",
+    "[recomendación práctica 2]",
+    "[recomendación práctica 3]",
+    "[recomendación práctica 4]",
+    "[recomendación práctica 5]"
+  ]
 }}
-"""
+
+Responde ÚNICAMENTE con el JSON, sin explicaciones adicionales."""
     
     try:
         # FIX 3.1: Use injected llm_provider with proper async interface
         from ...llm.base import LLMMessage, LLMRole
         llm_response_obj = await llm_provider.generate(
             messages=[LLMMessage(role=LLMRole.USER, content=prompt)],
-            temperature=0.7,
-            max_tokens=2000
+            temperature=0.3,  # Más bajo para respuestas más consistentes
+            max_tokens=3000   # Aumentado para análisis detallado
         )
-        response = llm_response_obj.content
+        response_text = llm_response_obj.content
+        
+        logger.info(f"Raw LLM response for risk analysis (first 300 chars): {response_text[:300]}")
 
+        # Extraer JSON del response (puede tener texto antes/después)
+        # Buscar el primer { y el último }
+        json_start = response_text.find('{')
+        json_end = response_text.rfind('}')
+        
+        if json_start == -1 or json_end == -1:
+            raise ValueError("No JSON found in LLM response")
+        
+        json_str = response_text[json_start:json_end + 1]
+        
         # Parse JSON response with validation
-        analysis_data = json.loads(response)
+        analysis_data = json.loads(json_str)
+        
+        logger.info(f"Successfully parsed JSON from Mistral AI for session {session_id}")
 
         # Validate required keys exist with safe access
         required_dimensions = ["cognitive", "ethical", "epistemic", "technical", "governance"]
@@ -242,6 +341,8 @@ Responde SOLO en formato JSON válido:
             score = dim_data.get("score", 3)
             if not isinstance(score, (int, float)):
                 score = 3
+            # Asegurar que score esté en rango 0-10
+            score = max(0, min(10, int(score)))
             dimension_scores.append(score)
             validated_dimensions[dim] = {
                 "score": score,

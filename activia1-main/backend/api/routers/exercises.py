@@ -330,7 +330,9 @@ RESPONDE SOLO CON EL JSON, SIN TEXTO ADICIONAL."""
 async def list_json_exercises(
     difficulty: Optional[str] = None,
     unit: Optional[str] = None,
-    tag: Optional[str] = None
+    tag: Optional[str] = None,
+    language: Optional[str] = None,
+    framework: Optional[str] = None
 ):
     """
     Lista ejercicios del sistema JSON (con Alex evaluador)
@@ -339,17 +341,27 @@ async def list_json_exercises(
     - difficulty: 'easy', 'medium', 'hard'
     - unit: 'unit1', 'unit2', etc.
     - tag: filtrar por tag específico
+    - language: 'python', 'java'
+    - framework: 'spring-boot'
     """
-    # Obtener todos los ejercicios
-    exercises = exercise_loader.get_all()
-    
-    # Filtrar
-    if difficulty:
-        exercises = [e for e in exercises if e['meta']['difficulty'].lower() == difficulty.lower()]
+    # Usar el método search mejorado del loader
+    unit_num = None
     if unit:
-        exercises = [e for e in exercises if e['id'].startswith(unit.upper())]
-    if tag:
-        exercises = [e for e in exercises if tag.lower() in [t.lower() for t in e['meta']['tags']]]
+        # Extraer número del unit (ej: 'unit1' -> 1)
+        try:
+            unit_num = int(unit.replace('unit', '').replace('U', ''))
+        except ValueError:
+            pass
+    
+    tags_list = [tag] if tag else None
+    
+    exercises = exercise_loader.search(
+        difficulty=difficulty,
+        tags=tags_list,
+        unit=unit_num,
+        language=language,
+        framework=framework
+    )
     
     # Convertir a schema de listado
     result = []
@@ -367,17 +379,26 @@ async def list_json_exercises(
     return result
 
 
-@router.get("/json/stats", response_model=ExerciseStatsSchema)
+@router.get("/json/stats")
 async def get_json_exercises_stats():
-    """Obtiene estadísticas de los ejercicios JSON"""
+    """Obtiene estadísticas de los ejercicios JSON incluyendo lenguaje y framework"""
     stats = exercise_loader.get_stats()
     
-    return ExerciseStatsSchema(
-        total_exercises=stats['total_exercises'],
-        by_difficulty=stats['by_difficulty'],
-        total_time_hours=stats['total_time_hours'],
-        unique_tags=stats['unique_tags']
-    )
+    # Retornar stats completas incluyendo by_language y by_framework
+    return {
+        "total_exercises": stats['total_exercises'],
+        "by_difficulty": stats['by_difficulty'],
+        "by_language": stats.get('by_language', {}),
+        "by_framework": stats.get('by_framework', {}),
+        "total_time_hours": stats['total_time_hours'],
+        "unique_tags": stats['unique_tags']
+    }
+
+
+@router.get("/json/filters")
+async def get_available_filters():
+    """Obtiene los valores disponibles para todos los filtros"""
+    return exercise_loader.get_available_filters()
 
 
 @router.get("/json/{exercise_id}", response_model=ExerciseJSONSchema)
@@ -418,73 +439,98 @@ async def submit_json_exercise(
     if not exercise:
         raise HTTPException(404, detail=f"Ejercicio '{exercise_id}' no encontrado")
     
-    # 2. Ejecutar en sandbox
-    logger.info(f"Ejecutando código para ejercicio {exercise_id} (usuario anónimo)")
+    # 2. Ejecutar tests ocultos en sandbox SOLO si es Python
+    # Para Java/Spring Boot, solo evaluación con IA
+    language = exercise['meta'].get('language', 'python').lower()
+    is_java = language == 'java' or 'spring' in exercise['meta'].get('framework', '').lower()
     
-    # Ejecutar tests ocultos
+    logger.info(f"Ejercicio detectado: language={language}, is_java={is_java}")
+    
+    if is_java:
+        # Java/Spring Boot: Solo evaluación con IA, sin ejecución
+        logger.info("Ejercicio de Java/Spring Boot detectado - Solo evaluación con IA")
+        sandbox_result = {
+            "exit_code": -1,  # -1 indica "no ejecutado"
+            "stdout": "[Java/Spring Boot] Este código no se ejecuta en sandbox Python. Evaluación solo por IA.",
+            "stderr": "",
+            "execution_time_ms": 0,
+            "tests_passed": 0,
+            "tests_total": len(exercise['hidden_tests']),
+            "language": language,
+            "evaluation_type": "ai_only"  # Indicador para que la IA sepa que no hay ejecución
+        }
+    else:
+        # Python: Ejecución normal en sandbox
+        logger.info(f"Ejecutando código para ejercicio {exercise_id} (usuario anónimo)")
+    
+    # Ejecutar tests ocultos (solo para Python)
     tests_passed = 0
     tests_total = len(exercise['hidden_tests'])
     stdout_output = ""
     stderr_output = ""
     total_execution_time = 0
     
-    for test in exercise['hidden_tests']:
-        # Adaptarse a la estructura real de los JSON (input/expected)
-        test_input = test.get('input', test.get('input_data', ''))
-        if isinstance(test_input, dict) or isinstance(test_input, list):
-            test_input = json.dumps(test_input)
-        
-        stdout, stderr, exec_time = execute_python_code(
-            submission.student_code,
-            str(test_input),
-            timeout_seconds=30
-        )
-        
-        total_execution_time += exec_time
-        stdout_output += stdout + "\n"
-        stderr_output += stderr + "\n"
-        
-        # Verificar si pasó el test
-        if not stderr:
-            # Soportar tanto 'expected_output' (legacy) como 'expected' (nuevo)
-            expected = test.get('expected_output') or test.get('expected', '')
+    if not is_java:  # Solo ejecutar si es Python
+        for test in exercise['hidden_tests']:
+            # Adaptarse a la estructura real de los JSON (input/expected)
+            test_input = test.get('input', test.get('input_data', ''))
+            if isinstance(test_input, dict) or isinstance(test_input, list):
+                test_input = json.dumps(test_input)
             
-            if expected:
-                # Si expected es una expresión Python (ej: "total == 42600"), evaluarla
-                if '==' in expected or 'and' in expected or 'or' in expected:
-                    try:
-                        # Crear contexto con las variables ejecutando el código
-                        exec_globals = {}
-                        exec(submission.student_code, exec_globals)
-                        
-                        # Evaluar la expresión expected en ese contexto
-                        test_passed = eval(expected, exec_globals)
-                        
-                        if test_passed:
-                            tests_passed += 1
-                            logger.info(f"Test pasado: {expected}")
-                        else:
-                            logger.warning(f"Test falló: {expected} (evaluó a False)")
-                    except Exception as e:
-                        logger.warning(f"Error evaluando expected expression '{expected}': {e}")
-                else:
-                    # Es un output directo, comparar strings
-                    expected_str = str(expected).strip()
-                    actual = stdout.strip()
-                    if expected_str == actual:
-                        tests_passed += 1
-                        logger.info(f"Test pasado: output coincide")
+            stdout, stderr, exec_time = execute_python_code(
+                submission.student_code,
+                str(test_input),
+                timeout_seconds=30
+            )
+            
+            total_execution_time += exec_time
+            stdout_output += stdout + "\n"
+            stderr_output += stderr + "\n"
+            
+            # Verificar si pasó el test
+            if not stderr:
+                # Soportar tanto 'expected_output' (legacy) como 'expected' (nuevo)
+                expected = test.get('expected_output') or test.get('expected', '')
+                
+                if expected:
+                    # Si expected es una expresión Python (ej: "total == 42600"), evaluarla
+                    if '==' in expected or 'and' in expected or 'or' in expected:
+                        try:
+                            # Crear contexto con las variables ejecutando el código
+                            exec_globals = {}
+                            exec(submission.student_code, exec_globals)
+                            
+                            # Evaluar la expresión expected en ese contexto
+                            test_passed = eval(expected, exec_globals)
+                            
+                            if test_passed:
+                                tests_passed += 1
+                                logger.info(f"Test pasado: {expected}")
+                            else:
+                                logger.warning(f"Test falló: {expected} (evaluó a False)")
+                        except Exception as e:
+                            logger.warning(f"Error evaluando expected expression '{expected}': {e}")
                     else:
-                        logger.warning(f"Test falló: expected '{expected_str}' != actual '{actual}'")
-    
-    sandbox_result = {
-        "exit_code": 0 if not stderr_output.strip() else 1,
-        "stdout": stdout_output.strip(),
-        "stderr": stderr_output.strip(),
-        "execution_time_ms": total_execution_time,
-        "tests_passed": tests_passed,
-        "tests_total": tests_total
-    }
+                        # Es un output directo, comparar strings
+                        expected_str = str(expected).strip()
+                        actual = stdout.strip()
+                        if expected_str == actual:
+                            tests_passed += 1
+                            logger.info(f"Test pasado: output coincide")
+                        else:
+                            logger.warning(f"Test falló: expected '{expected_str}' != actual '{actual}'")
+        
+        # Crear sandbox_result solo si es Python (si es Java ya se creó arriba)
+        sandbox_result = {
+            "exit_code": 0 if not stderr_output.strip() else 1,
+            "stdout": stdout_output.strip(),
+            "stderr": stderr_output.strip(),
+            "execution_time_ms": total_execution_time,
+            "tests_passed": tests_passed,
+            "tests_total": tests_total,
+            "language": "python",
+            "evaluation_type": "execution"
+        }
     
     # 3. Evaluar con Alex (IA)
     logger.info(f"Evaluando con Alex (IA): {tests_passed}/{tests_total} tests pasados")

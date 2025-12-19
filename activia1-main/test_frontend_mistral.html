@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Mistral AI - Frontend</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .info-box {
+            background: #f0f4ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .info-box code {
+            background: #e0e7ff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .test-section {
+            margin-bottom: 40px;
+        }
+        
+        .test-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .chat-container {
+            border: 2px solid #e0e7ff;
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            margin: 20px 0;
+            background: #fafbff;
+        }
+        
+        .message {
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 80%;
+        }
+        
+        .message.user {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+        
+        .message.ai {
+            background: white;
+            border: 2px solid #e0e7ff;
+            color: #333;
+        }
+        
+        .message.system {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            color: #856404;
+            max-width: 100%;
+            text-align: center;
+            font-style: italic;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+            max-width: 100%;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 14px;
+            border: 2px solid #e0e7ff;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .metadata {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+        
+        .session-info {
+            background: #e8f5e9;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        
+        .session-info strong {
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Mistral AI desde Frontend</h1>
+        <p class="subtitle">Prueba la integración completa: Frontend → Backend → Mistral AI</p>
+        
+        <div class="info-box">
+            <h3>ℹ️ Información del Sistema</h3>
+            <p>
+                <strong>Backend:</strong> <code id="backend-url">http://localhost:8000/api/v1</code><br>
+                <strong>LLM Provider:</strong> <code>Mistral AI</code><br>
+                <strong>Status:</strong> <span id="system-status" class="status offline">Verificando...</span>
+            </p>
+        </div>
+        
+        <div class="test-section">
+            <h2>
+                <span>💬</span> Chat con el Tutor (T-IA-Cog)
+            </h2>
+            
+            <button id="start-session-btn" onclick="startSession()">
+                🚀 Iniciar Nueva Sesión
+            </button>
+            
+            <div id="session-info"></div>
+            
+            <div id="chat-container" class="chat-container" style="display: none;">
+                <!-- Mensajes aparecerán aquí -->
+            </div>
+            
+            <div id="input-group" class="input-group" style="display: none;">
+                <input 
+                    type="text" 
+                    id="message-input" 
+                    placeholder="Escribe tu pregunta aquí..."
+                    onkeypress="handleKeyPress(event)"
+                >
+                <button onclick="sendMessage()">Enviar</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000/api/v1';
+        let currentSessionId = null;
+        
+        // Verificar estado del sistema al cargar
+        async function checkSystemHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                const statusEl = document.getElementById('system-status');
+                if (data.status === 'healthy') {
+                    statusEl.className = 'status online';
+                    statusEl.textContent = '✅ Online';
+                } else {
+                    statusEl.className = 'status offline';
+                    statusEl.textContent = '⚠️ Degraded';
+                }
+            } catch (error) {
+                const statusEl = document.getElementById('system-status');
+                statusEl.className = 'status offline';
+                statusEl.textContent = '❌ Offline';
+                console.error('Health check failed:', error);
+            }
+        }
+        
+        // Iniciar sesión de tutoría
+        async function startSession() {
+            const btn = document.getElementById('start-session-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Creando sesión...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/sessions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        student_id: `test_frontend_${Date.now()}`,
+                        activity_id: 'frontend_test_activity',
+                        mode: 'TUTOR',
+                        subject: 'matematicas',
+                        topic: 'algebra'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                
+                const result = await response.json();
+                currentSessionId = result.data.id;
+                
+                // Mostrar info de sesión
+                document.getElementById('session-info').innerHTML = `
+                    <div class="session-info">
+                        <strong>Sesión activa:</strong> ${currentSessionId}<br>
+                        <strong>Tema:</strong> Álgebra (Matemáticas)
+                    </div>
+                `;
+                
+                // Mostrar chat
+                document.getElementById('chat-container').style.display = 'block';
+                document.getElementById('input-group').style.display = 'flex';
+                
+                // Agregar mensaje de bienvenida
+                addMessage('system', '¡Sesión iniciada! Puedes hacer preguntas sobre álgebra.');
+                
+                btn.textContent = '✅ Sesión Creada';
+                
+            } catch (error) {
+                alert(`Error al crear sesión: ${error.message}`);
+                btn.disabled = false;
+                btn.textContent = '🚀 Iniciar Nueva Sesión';
+                console.error('Session creation failed:', error);
+            }
+        }
+        
+        // Enviar mensaje al tutor
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            if (!currentSessionId) {
+                alert('Primero inicia una sesión');
+                return;
+            }
+            
+            // Mostrar mensaje del usuario
+            addMessage('user', message);
+            input.value = '';
+            input.disabled = true;
+            
+            // Mostrar spinner
+            const chatContainer = document.getElementById('chat-container');
+            chatContainer.innerHTML += '<div class="spinner"></div>';
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            try {
+                const response = await fetch(`${API_BASE}/interactions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_id: currentSessionId,
+                        student_id: `test_frontend_${Date.now()}`,
+                        prompt: message
+                    })
+                });
+                
+                // Remover spinner
+                const spinner = chatContainer.querySelector('.spinner');
+                if (spinner) spinner.remove();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                
+                const result = await response.json();
+                const aiResponse = result.data.response;
+                
+                // Mostrar respuesta de la IA
+                addMessage('ai', aiResponse);
+                
+            } catch (error) {
+                // Remover spinner
+                const spinner = chatContainer.querySelector('.spinner');
+                if (spinner) spinner.remove();
+                
+                addMessage('error', `Error: ${error.message}`);
+                console.error('Interaction failed:', error);
+            } finally {
+                input.disabled = false;
+                input.focus();
+            }
+        }
+        
+        // Agregar mensaje al chat
+        function addMessage(type, text) {
+            const chatContainer = document.getElementById('chat-container');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            // Convertir Markdown simple a HTML
+            let htmlText = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/### (.*?)(\n|$)/g, '<h4>$1</h4>')
+                .replace(/\n/g, '<br>');
+            
+            messageDiv.innerHTML = htmlText;
+            
+            if (type === 'ai') {
+                const metadata = document.createElement('div');
+                metadata.className = 'metadata';
+                metadata.textContent = `Powered by Mistral AI • ${new Date().toLocaleTimeString()}`;
+                messageDiv.appendChild(metadata);
+            }
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // Manejar Enter en el input
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // Inicializar
+        checkSystemHealth();
+    </script>
+</body>
+</html>

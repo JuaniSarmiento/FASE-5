@@ -120,7 +120,7 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onSelectExercise }
       {stats && (
         <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-8 text-white">
           <h2 className="text-4xl font-bold mb-6 flex items-center gap-3">
-            <span className="text-5xl">💻</span> Ejercicios de Programación
+            <span className="text-5xl">💻</span> Entrenador Digital
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 border border-white/30 hover:bg-white/30 transition-all">

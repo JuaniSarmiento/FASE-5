@@ -91,8 +91,8 @@ const ExercisesPageNew: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold gradient-text mb-3">Ejercicios de Programación</h1>
-          <p className="text-gray-400">Resuelve ejercicios y obtén feedback de IA en tiempo real</p>
+          <h1 className="text-4xl font-bold gradient-text mb-3">Entrenador Digital</h1>
+          <p className="text-gray-400">Practica con ejercicios de Python, Java y Spring Boot - Feedback de IA en tiempo real</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -102,7 +102,7 @@ const ExercisesPageNew: React.FC = () => {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <Code className="w-5 h-5 text-purple-400" />
-                  Ejercicios
+                  Entrenador Digital
                 </h2>
               </div>
 

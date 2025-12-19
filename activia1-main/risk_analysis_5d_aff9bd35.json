@@ -1,0 +1,79 @@
+{
+  "session_id": "aff9bd35-8f71-4e7a-aa2c-d58f0be352d9",
+  "overall_score": 30,
+  "risk_level": "high",
+  "dimensions": {
+    "cognitive": {
+      "score": 7,
+      "level": "high",
+      "indicators": [
+        "Pide soluciones completas sin contexto previo (ej: código para loop, servidor Flask)",
+        "No hay preguntas de seguimiento profundas o reflexivas",
+        "Falta de intento por resolver problemas antes de pedir ayuda"
+      ]
+    },
+    "ethical": {
+      "score": 5,
+      "level": "medium",
+      "indicators": [
+        "No hay indicios claros de plagio, pero las preguntas son muy directas",
+        "No menciona atribución o uso educativo del código",
+        "No se evidencia honestidad sobre su nivel de conocimiento"
+      ]
+    },
+    "epistemic": {
+      "score": 6,
+      "level": "medium",
+      "indicators": [
+        "Preguntas muestran comprensión superficial (ej: '¿Qué es una función?')",
+        "No profundiza en fundamentos teóricos",
+        "Busca respuestas rápidas más que entender conceptos"
+      ]
+    },
+    "technical": {
+      "score": 8,
+      "level": "high",
+      "indicators": [
+        "Pide código completo sin intentar entenderlo (ej: servidor Flask)",
+        "No hay preguntas sobre debugging o adaptación del código",
+        "Falta de intento por resolver problemas técnicos antes de pedir ayuda"
+      ]
+    },
+    "governance": {
+      "score": 4,
+      "level": "medium",
+      "indicators": [
+        "No hay uso excesivo, pero tampoco justificación educativa clara",
+        "No se evidencia un plan de aprendizaje estructurado",
+        "Uso pasivo de la IA sin reflexión sobre su impacto en el aprendizaje"
+      ]
+    }
+  },
+  "top_risks": [
+    {
+      "dimension": "technical",
+      "description": "Dependencia excesiva de la IA para obtener código completo sin comprensión técnica",
+      "severity": "high",
+      "mitigation": "Implementar preguntas guiadas que obliguen al estudiante a intentar resolver antes de dar soluciones completas"
+    },
+    {
+      "dimension": "cognitive",
+      "description": "Falta de pensamiento crítico y delegación total en la IA",
+      "severity": "high",
+      "mitigation": "Promover preguntas de seguimiento y reflexión sobre las respuestas de la IA"
+    },
+    {
+      "dimension": "epistemic",
+      "description": "Comprensión superficial de los conceptos sin profundización",
+      "severity": "medium",
+      "mitigation": "Incluir preguntas sobre fundamentos teóricos y ejemplos prácticos antes de dar respuestas directas"
+    }
+  ],
+  "recommendations": [
+    "Implementar un sistema de preguntas guiadas que obligue al estudiante a reflexionar antes de recibir respuestas completas",
+    "Fomentar preguntas de seguimiento y reflexión sobre las respuestas de la IA",
+    "Incluir ejemplos prácticos y fundamentos teóricos antes de proporcionar soluciones directas",
+    "Promover el uso de la IA como herramienta de apoyo y no como sustituto del aprendizaje activo",
+    "Establecer un marco de uso responsable que incluya reflexión sobre el impacto educativo de la IA"
+  ]
+}

@@ -20,13 +20,16 @@ Tu objetivo NO es solo poner una nota. Es **enseñar a pensar** y garantizar que
 
 ### 2. LA SOLUCIÓN DEL ESTUDIANTE
 
-```python
+```
 {{student_code}}
 ```
 
 ### 3. REPORTE DEL SANDBOX (Ejecución Real)
 
-**Estado de Salida:** {{sandbox_exit_code}} (0 = Éxito, 1 = Error)
+**IMPORTANTE:** Si el ejercicio es de Java/Spring Boot, la ejecución en sandbox está deshabilitada (exit_code = -1).
+En ese caso, debes evaluar SOLO la calidad del código, estructura, uso correcto de anotaciones y mejores prácticas.
+
+**Estado de Salida:** {{sandbox_exit_code}} (-1 = No ejecutado (Java/Spring Boot), 0 = Éxito, 1 = Error)
 
 **Salida Estándar (STDOUT):**
 ```
@@ -50,22 +53,28 @@ Tu objetivo NO es solo poner una nota. Es **enseñar a pensar** y garantizar que
 
 Antes de generar el JSON, analiza paso a paso (piensa internamente):
 
-1. **Verificación de "Trampa" (Hardcoding):**
+1. **Detectar Lenguaje:**
+   - Si `exit_code == -1` → Es Java/Spring Boot (sin ejecución)
+   - Para Java/Spring Boot: Evalúa estructura de clases, uso de anotaciones (@RestController, @Service, etc.), manejo de errores, y mejores prácticas
+   - Para Python: Aplica el flujo normal de verificación con ejecución
+
+2. **Verificación de "Trampa" (Hardcoding) - Solo Python:**
    - ¿El estudiante simplemente imprimió la respuesta esperada sin implementar la lógica?
    - Si es así → Nota 0 y advertencia severa.
 
-2. **Análisis de Ejecución:**
+3. **Análisis de Ejecución (Solo Python):**
    - Si `exit_code != 0`: ¿Es un error de sintaxis o una excepción no manejada? Esto penaliza fuertemente la "Robustez".
    - Si los tests pasaron: ¿Fue suerte o la lógica es sólida?
 
-3. **Análisis Estático (Calidad de Código):**
-   - ¿Usa nombres de variables descriptivos (`total_ventas`) o crípticos (`x`, `a`)?
-   - ¿Respeta las restricciones (ej: "No usar pandas")?
+4. **Análisis Estático (Calidad de Código) - Todos los lenguajes:**
+   - Python: ¿Usa nombres de variables descriptivos (`total_ventas`) o crípticos (`x`, `a`)?
+   - Java/Spring Boot: ¿Usa anotaciones correctamente? ¿ResponseEntity está bien estructurado? ¿Manejo de excepciones es robusto?
+   - ¿Respeta las restricciones técnicas especificadas?
    - ¿El código es innecesariamente complejo (Spaghetti code)?
 
-4. **Feedback Pedagógico:**
+5. **Feedback Pedagógico:**
    - Construye una crítica que empiece validando el esfuerzo
-   - Señale el error principal
+   - Señale el error principal (o fortalezas si es Java sin ejecución)
    - Termine con un consejo pro
 
 ---

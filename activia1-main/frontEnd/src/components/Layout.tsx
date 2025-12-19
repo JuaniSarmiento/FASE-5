@@ -20,7 +20,7 @@ import {
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: Home },
   { path: '/tutor', label: 'Tutor IA', icon: MessageSquare },
-  { path: '/exercises', label: 'Ejercicios', icon: Code },
+  { path: '/exercises', label: 'Entrenador Digital', icon: Code },
   { path: '/simulators', label: 'Simuladores', icon: Users },
   { path: '/analytics', label: 'Analíticas', icon: BarChart3 },
 ];

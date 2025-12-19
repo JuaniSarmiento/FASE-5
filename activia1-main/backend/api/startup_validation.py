@@ -158,7 +158,7 @@ class StartupValidator:
         """Validate LLM provider configuration"""
         llm_provider = os.getenv("LLM_PROVIDER", "mock")
 
-        valid_providers = ["mock", "ollama", "openai", "gemini", "anthropic"]
+        valid_providers = ["mock", "ollama", "openai", "gemini", "mistral", "anthropic"]
         if llm_provider not in valid_providers:
             self.errors.append(
                 f"LLM_PROVIDER '{llm_provider}' is invalid. "
@@ -169,7 +169,7 @@ class StartupValidator:
         if self.is_production and llm_provider == "mock":
             self.warnings.append(
                 "LLM_PROVIDER is 'mock' in PRODUCTION. "
-                "Consider using 'ollama', 'openai', 'gemini', or 'anthropic'."
+                "Consider using 'ollama', 'openai', 'gemini', 'mistral', or 'anthropic'."
             )
 
         # Validate API keys if using real providers
@@ -190,6 +190,13 @@ class StartupValidator:
             if not api_key:
                 self.errors.append(
                     "GEMINI_API_KEY is required when LLM_PROVIDER='gemini'"
+                )
+        
+        elif llm_provider == "mistral":
+            api_key = os.getenv("MISTRAL_API_KEY")
+            if not api_key:
+                self.errors.append(
+                    "MISTRAL_API_KEY is required when LLM_PROVIDER='mistral'"
                 )
 
         elif llm_provider == "anthropic":

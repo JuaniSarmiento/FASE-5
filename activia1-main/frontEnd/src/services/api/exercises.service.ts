@@ -101,11 +101,15 @@ class ExercisesService extends BaseApiService {
     difficulty?: string;
     unit?: string;
     tag?: string;
+    language?: string;
+    framework?: string;
   }): Promise<ExerciseListItem[]> {
     const searchParams = new URLSearchParams();
     if (params?.difficulty) searchParams.append('difficulty', params.difficulty);
     if (params?.unit) searchParams.append('unit', params.unit);
     if (params?.tag) searchParams.append('tag', params.tag);
+    if (params?.language) searchParams.append('language', params.language);
+    if (params?.framework) searchParams.append('framework', params.framework);
 
     const query = searchParams.toString();
     // FIX: Este endpoint devuelve array directo, no APIResponse wrapper
