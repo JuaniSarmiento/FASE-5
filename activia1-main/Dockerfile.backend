@@ -19,31 +19,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY scripts/ ./scripts/
 
-# Create startup script
-RUN echo '#!/bin/bash\n\
-set -e\n\
-\n\
-echo "⏳ Esperando PostgreSQL..."\n\
-until pg_isready -h ${POSTGRES_HOST:-localhost} -p ${POSTGRES_PORT:-5432} -U ${POSTGRES_USER:-postgres}; do\n\
-  echo "PostgreSQL no está listo - esperando..."\n\
-  sleep 2\n\
-done\n\
-echo "✅ PostgreSQL está listo"\n\
-\n\
-echo "🔄 Ejecutando migraciones..."\n\
-# Aquí puedes agregar scripts de migración si los tienes\n\
-# python -m backend.database.migrations.add_n4_dimensions || true\n\
-\n\
-echo "🚀 Iniciando servidor..."\n\
-exec python -m uvicorn backend.api.main:app --host 0.0.0.0 --port 8000\n\
-' > /app/start.sh && chmod +x /app/start.sh
-
-# Add healthcheck
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:8000/api/v1/health || exit 1
-
 # Expose port
 EXPOSE 8000
 
-# Use startup script
-CMD ["/app/start.sh"]
+# Health check (disabled initially for easier debugging)
+# HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+#   CMD curl -f http://localhost:8000/api/v1/health || exit 1
+
+# Start server directly (sin script de espera)
+CMD ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
