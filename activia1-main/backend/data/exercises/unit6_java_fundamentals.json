@@ -1,0 +1,131 @@
+[
+  {
+    "id": "U6-JAVA-01",
+    "meta": {
+      "title": "Variables y Tipos de Datos en Java",
+      "difficulty": "Easy",
+      "estimated_time_min": 15,
+      "language": "java",
+      "tags": ["Variables", "Tipos de Datos", "Java", "Fundamentos"]
+    },
+    "ui_config": {
+      "editor_language": "java",
+      "read_only_lines": [1, 2, 3],
+      "placeholder_text": "// Escribe tu solución aquí..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **Junior Developer** en una empresa de e-commerce. Tu tech lead te pide crear un sistema para calcular el total de ventas del trimestre.\n\n**Datos del trimestre:**\n- Enero: $15,750.50\n- Febrero: $18,920.75\n- Marzo: $17,345.25\n\nNecesitas calcular el total y el promedio mensual usando tipos de datos apropiados en Java.",
+      "mission_markdown": "### Tu Misión\n\n1. Declara **3 variables** de tipo `double` para las ventas mensuales\n2. Calcula el **total** de ventas del trimestre\n3. Calcula el **promedio** mensual\n4. Imprime los resultados usando `System.out.println()` con formato apropiado",
+      "constraints": [
+        "Usa CamelCase para nombres de variables (ej: ventasEnero)",
+        "Declara todas las variables con su tipo explícito",
+        "Usa System.out.printf para formatear a 2 decimales"
+      ]
+    },
+    "starter_code": "// NO TOCAR ESTAS LÍNEAS\n// Ejercicio: Variables y Tipos de Datos en Java\npublic class VentasAnalisis {\n    public static void main(String[] args) {\n        // TODO: Declara las variables de ventas mensuales\n        double ventasEnero = 0.0;\n        double ventasFebrero = 0.0;\n        double ventasMarzo = 0.0;\n        \n        // TODO: Calcula el total y el promedio\n        double total = 0.0;\n        double promedio = 0.0;\n        \n        // TODO: Imprime los resultados\n        System.out.printf(\"Total trimestre: $%.2f%n\", total);\n        System.out.printf(\"Promedio mensual: $%.2f%n\", promedio);\n    }\n}",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "total == 52016.50 && promedio == 17338.83"
+      }
+    ]
+  },
+  {
+    "id": "U6-JAVA-02",
+    "meta": {
+      "title": "Condicionales: Sistema de Descuentos",
+      "difficulty": "Easy",
+      "estimated_time_min": 20,
+      "language": "java",
+      "tags": ["Condicionales", "if-else", "Lógica", "Java"]
+    },
+    "ui_config": {
+      "editor_language": "java",
+      "read_only_lines": [1, 2, 3],
+      "placeholder_text": "// Completa el método..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nTrabajas en el sistema de facturación de una tienda online. Necesitas implementar un **sistema de descuentos** por volumen de compra.\n\n**Escala de descuentos:**\n- Compra >= $1000: **15%** de descuento\n- Compra >= $500: **10%** de descuento\n- Compra >= $200: **5%** de descuento\n- Compra < $200: **Sin descuento**",
+      "mission_markdown": "### Tu Misión\n\n1. Completa el método `calcularDescuento(double montoCompra)`\n2. Valida que el monto sea **positivo**\n3. Retorna el **porcentaje de descuento** aplicable (15, 10, 5, o 0)\n4. Si el monto es negativo, retorna **-1** como código de error",
+      "constraints": [
+        "Usa else-if para optimizar las comparaciones",
+        "El método debe ser estático (static)",
+        "Retorna int, no double"
+      ]
+    },
+    "starter_code": "// NO TOCAR ESTA LÍNEA\npublic class SistemaDescuentos {\n    /**\n     * Calcula el descuento aplicable según el monto de compra.\n     * @param montoCompra Monto total de la compra\n     * @return Porcentaje de descuento (15, 10, 5, 0) o -1 si es inválido\n     */\n    public static int calcularDescuento(double montoCompra) {\n        // TODO: Valida que el monto sea positivo\n        \n        // TODO: Implementa la lógica de descuentos\n        \n        return 0;\n    }\n    \n    public static void main(String[] args) {\n        System.out.println(calcularDescuento(1200.0));  // Debe imprimir: 15\n        System.out.println(calcularDescuento(550.0));   // Debe imprimir: 10\n        System.out.println(calcularDescuento(250.0));   // Debe imprimir: 5\n        System.out.println(calcularDescuento(150.0));   // Debe imprimir: 0\n        System.out.println(calcularDescuento(-50.0));   // Debe imprimir: -1\n    }\n}",
+    "hidden_tests": [
+      {"input": "1200.0", "expected": "15"},
+      {"input": "550.0", "expected": "10"},
+      {"input": "250.0", "expected": "5"},
+      {"input": "150.0", "expected": "0"},
+      {"input": "-50.0", "expected": "-1"}
+    ]
+  },
+  {
+    "id": "U6-JAVA-03",
+    "meta": {
+      "title": "Bucles y Arrays: Análisis de Ventas",
+      "difficulty": "Medium",
+      "estimated_time_min": 30,
+      "language": "java",
+      "tags": ["Bucles", "Arrays", "Estadísticas", "Java"]
+    },
+    "ui_config": {
+      "editor_language": "java",
+      "read_only_lines": [1, 2, 3, 4],
+      "placeholder_text": "// Completa el análisis..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres **Data Analyst** en una cadena de retail. Tienes las ventas diarias de la última semana y necesitas generar un **reporte estadístico**.\n\n**Datos:**\n```java\ndouble[] ventas = {1250.50, 1890.75, 1450.25, 2100.00, 1675.50, 2250.75, 1980.25};\n```",
+      "mission_markdown": "### Tu Misión\n\n1. Calcula el **total de ventas** de la semana\n2. Encuentra la **venta máxima** y **mínima**\n3. Calcula el **promedio** de ventas diarias\n4. Cuenta cuántos días las ventas fueron **mayores al promedio**\n5. Imprime un reporte formateado",
+      "constraints": [
+        "No usar librerías externas (Arrays.stream, etc.)",
+        "Implementa tu propia lógica con bucles for",
+        "Redondea el promedio a 2 decimales"
+      ]
+    },
+    "starter_code": "// NO TOCAR ESTAS LÍNEAS\n// Ejercicio: Análisis de Ventas Semanales\npublic class AnalisisVentas {\n    public static void main(String[] args) {\n        double[] ventas = {1250.50, 1890.75, 1450.25, 2100.00, 1675.50, 2250.75, 1980.25};\n        \n        // TODO: Calcula el total de ventas\n        double total = 0.0;\n        for (int i = 0; i < ventas.length; i++) {\n            // Tu código aquí\n        }\n        \n        // TODO: Encuentra máxima y mínima\n        double max = ventas[0];\n        double min = ventas[0];\n        \n        for (double venta : ventas) {\n            // Tu código aquí\n        }\n        \n        // TODO: Calcula el promedio\n        double promedio = 0.0;\n        \n        // TODO: Cuenta días sobre el promedio\n        int diasSobrePromedio = 0;\n        \n        // TODO: Imprime el reporte\n        System.out.println(\"=== REPORTE DE VENTAS SEMANALES ===\");\n        System.out.printf(\"Total: $%.2f%n\", total);\n        System.out.printf(\"Promedio: $%.2f%n\", promedio);\n        System.out.printf(\"Máxima: $%.2f%n\", max);\n        System.out.printf(\"Mínima: $%.2f%n\", min);\n        System.out.printf(\"Días sobre promedio: %d%n\", diasSobrePromedio);\n    }\n}",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "total == 12598.00 && promedio == 1799.71 && max == 2250.75 && min == 1250.50 && diasSobrePromedio == 3"
+      }
+    ]
+  },
+  {
+    "id": "U6-JAVA-04",
+    "meta": {
+      "title": "POO: Clase Producto",
+      "difficulty": "Medium",
+      "estimated_time_min": 35,
+      "language": "java",
+      "tags": ["POO", "Clases", "Encapsulamiento", "Java"]
+    },
+    "ui_config": {
+      "editor_language": "java",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "// Implementa la clase..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres **Backend Developer** en un sistema de inventario. Necesitas crear la clase `Producto` con encapsulamiento apropiado.\n\n**Requisitos:**\n- Atributos: código (String), nombre (String), precio (double), stock (int)\n- El precio debe ser siempre positivo\n- El stock debe ser siempre >= 0",
+      "mission_markdown": "### Tu Misión\n\n1. Crea la clase `Producto` con atributos privados\n2. Implementa **constructor** con validaciones\n3. Implementa **getters** y **setters** con validaciones\n4. Implementa método `calcularValorInventario()` que retorne precio * stock\n5. Implementa método `toString()` con información formateada",
+      "constraints": [
+        "Todos los atributos deben ser private",
+        "Valida precio > 0 y stock >= 0 en constructor y setters",
+        "Si hay valores inválidos, usa valores por defecto (0 y 1)"
+      ]
+    },
+    "starter_code": "// NO TOCAR ESTA LÍNEA\npublic class Producto {\n    // TODO: Declara los atributos privados\n    \n    // TODO: Implementa el constructor\n    public Producto(String codigo, String nombre, double precio, int stock) {\n        \n    }\n    \n    // TODO: Implementa getters\n    \n    // TODO: Implementa setters con validaciones\n    \n    // TODO: Implementa calcularValorInventario()\n    public double calcularValorInventario() {\n        return 0.0;\n    }\n    \n    // TODO: Implementa toString()\n    @Override\n    public String toString() {\n        return \"\";\n    }\n    \n    // Main para probar\n    public static void main(String[] args) {\n        Producto p1 = new Producto(\"P001\", \"Laptop\", 899.99, 15);\n        System.out.println(p1);\n        System.out.println(\"Valor inventario: $\" + p1.calcularValorInventario());\n        \n        // Probar validaciones\n        Producto p2 = new Producto(\"P002\", \"Mouse\", -10.0, -5);\n        System.out.println(p2);\n    }\n}",
+    "hidden_tests": [
+      {
+        "input": "P001, Laptop, 899.99, 15",
+        "expected": "calcularValorInventario() == 13499.85"
+      },
+      {
+        "input": "P002, Mouse, -10.0, -5",
+        "expected": "getPrecio() > 0 && getStock() >= 0"
+      }
+    ]
+  }
+]

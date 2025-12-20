@@ -1,0 +1,228 @@
+{
+  "catalog": {
+    "total_exercises": 15,
+    "total_hours": 7.1,
+    "by_difficulty": {
+      "Easy": 5,
+      "Medium": 7,
+      "Hard": 3
+    },
+    "units": [
+      {
+        "unit": 1,
+        "name": "Fundamentos de Programación",
+        "file": "unit1_fundamentals.json",
+        "exercises": [
+          {
+            "id": "U1-VAR-01",
+            "title": "Variables y Tipos de Datos",
+            "difficulty": "Easy",
+            "time_min": 15,
+            "tags": ["Variables", "Tipos de Datos", "Fundamentos"],
+            "description": "Análisis de ventas trimestrales usando variables"
+          },
+          {
+            "id": "U1-COND-01",
+            "title": "Estructuras Condicionales: Sistema de Calificaciones",
+            "difficulty": "Easy",
+            "time_min": 20,
+            "tags": ["Condicionales", "if-elif-else", "Lógica"],
+            "description": "Sistema automatizado de conversión de notas a letras"
+          },
+          {
+            "id": "U1-LOOP-01",
+            "title": "Bucles: Análisis de Temperaturas",
+            "difficulty": "Medium",
+            "time_min": 25,
+            "tags": ["Bucles", "Listas", "Estadísticas"],
+            "description": "Análisis estadístico de datos meteorológicos"
+          }
+        ]
+      },
+      {
+        "unit": 2,
+        "name": "Estructuras de Datos",
+        "file": "unit2_structures.json",
+        "exercises": [
+          {
+            "id": "U2-LIST-01",
+            "title": "Listas: Gestión de Inventario",
+            "difficulty": "Easy",
+            "time_min": 20,
+            "tags": ["Listas", "CRUD", "Métodos de lista"],
+            "description": "Sistema de gestión de inventario para tienda online"
+          },
+          {
+            "id": "U2-DICT-01",
+            "title": "Diccionarios: Sistema de Contactos",
+            "difficulty": "Medium",
+            "time_min": 30,
+            "tags": ["Diccionarios", "CRUD", "Búsqueda"],
+            "description": "App de contactos con búsqueda por ciudad"
+          },
+          {
+            "id": "U2-TUPLE-01",
+            "title": "Tuplas: Coordenadas Geográficas",
+            "difficulty": "Easy",
+            "time_min": 15,
+            "tags": ["Tuplas", "Inmutabilidad", "Geometría"],
+            "description": "Cálculo de distancias entre ciudades"
+          }
+        ]
+      },
+      {
+        "unit": 3,
+        "name": "Funciones y Programación Funcional",
+        "file": "unit3_functions.json",
+        "exercises": [
+          {
+            "id": "U3-FUNC-01",
+            "title": "Funciones: Calculadora de IMC",
+            "difficulty": "Easy",
+            "time_min": 20,
+            "tags": ["Funciones", "Parámetros", "Return"],
+            "description": "App de salud con cálculo de índice de masa corporal"
+          },
+          {
+            "id": "U3-RECUR-01",
+            "title": "Recursión: Factorial y Fibonacci",
+            "difficulty": "Medium",
+            "time_min": 30,
+            "tags": ["Recursión", "Algoritmos", "Matemáticas"],
+            "description": "Implementación de funciones matemáticas recursivas"
+          },
+          {
+            "id": "U3-LAMBDA-01",
+            "title": "Funciones Lambda y Map/Filter",
+            "difficulty": "Medium",
+            "time_min": 25,
+            "tags": ["Lambda", "Map", "Filter", "Programación Funcional"],
+            "description": "Procesamiento de transacciones bancarias"
+          }
+        ]
+      },
+      {
+        "unit": 4,
+        "name": "Manejo de Archivos",
+        "file": "unit4_files.json",
+        "exercises": [
+          {
+            "id": "U4-CSV-01",
+            "title": "Procesamiento de CSV: Análisis de Ventas",
+            "difficulty": "Medium",
+            "time_min": 35,
+            "tags": ["CSV", "Data Cleaning", "File I/O"],
+            "description": "Análisis de datos de ventas desde archivo CSV"
+          },
+          {
+            "id": "U4-JSON-01",
+            "title": "JSON: API de Usuarios",
+            "difficulty": "Medium",
+            "time_min": 30,
+            "tags": ["JSON", "API", "Serialización"],
+            "description": "Backend de API REST para gestión de usuarios"
+          },
+          {
+            "id": "U4-TXT-01",
+            "title": "Procesamiento de Texto: Análisis de Log",
+            "difficulty": "Hard",
+            "time_min": 40,
+            "tags": ["File I/O", "String Processing", "Parsing"],
+            "description": "Análisis de logs de servidor web para DevOps"
+          }
+        ]
+      },
+      {
+        "unit": 5,
+        "name": "Programación Orientada a Objetos",
+        "file": "unit5_oop.json",
+        "exercises": [
+          {
+            "id": "U5-OOP-01",
+            "title": "POO: Sistema de Biblioteca",
+            "difficulty": "Hard",
+            "time_min": 45,
+            "tags": ["POO", "Clases", "Encapsulación"],
+            "description": "Sistema completo de gestión bibliotecaria"
+          },
+          {
+            "id": "U5-INHERIT-01",
+            "title": "Herencia: Jerarquía de Empleados",
+            "difficulty": "Medium",
+            "time_min": 35,
+            "tags": ["Herencia", "Polimorfismo", "POO"],
+            "description": "Sistema de nómina con diferentes tipos de empleados"
+          },
+          {
+            "id": "U5-COMP-01",
+            "title": "Composición: Sistema de Pedidos",
+            "difficulty": "Hard",
+            "time_min": 40,
+            "tags": ["Composición", "Agregación", "POO"],
+            "description": "E-commerce con sistema de pedidos y productos"
+          }
+        ]
+      }
+    ]
+  },
+  "tags_index": {
+    "Fundamentos": ["U1-VAR-01"],
+    "Variables": ["U1-VAR-01"],
+    "Tipos de Datos": ["U1-VAR-01"],
+    "Condicionales": ["U1-COND-01"],
+    "if-elif-else": ["U1-COND-01"],
+    "Lógica": ["U1-COND-01"],
+    "Bucles": ["U1-LOOP-01"],
+    "Listas": ["U1-LOOP-01", "U2-LIST-01"],
+    "Estadísticas": ["U1-LOOP-01"],
+    "CRUD": ["U2-LIST-01", "U2-DICT-01"],
+    "Métodos de lista": ["U2-LIST-01"],
+    "Diccionarios": ["U2-DICT-01"],
+    "Búsqueda": ["U2-DICT-01"],
+    "Tuplas": ["U2-TUPLE-01"],
+    "Inmutabilidad": ["U2-TUPLE-01"],
+    "Geometría": ["U2-TUPLE-01"],
+    "Funciones": ["U3-FUNC-01"],
+    "Parámetros": ["U3-FUNC-01"],
+    "Return": ["U3-FUNC-01"],
+    "Recursión": ["U3-RECUR-01"],
+    "Algoritmos": ["U3-RECUR-01"],
+    "Matemáticas": ["U3-RECUR-01"],
+    "Lambda": ["U3-LAMBDA-01"],
+    "Map": ["U3-LAMBDA-01"],
+    "Filter": ["U3-LAMBDA-01"],
+    "Programación Funcional": ["U3-LAMBDA-01"],
+    "CSV": ["U4-CSV-01"],
+    "Data Cleaning": ["U4-CSV-01"],
+    "File I/O": ["U4-CSV-01", "U4-TXT-01"],
+    "JSON": ["U4-JSON-01"],
+    "API": ["U4-JSON-01"],
+    "Serialización": ["U4-JSON-01"],
+    "String Processing": ["U4-TXT-01"],
+    "Parsing": ["U4-TXT-01"],
+    "POO": ["U5-OOP-01", "U5-INHERIT-01", "U5-COMP-01"],
+    "Clases": ["U5-OOP-01"],
+    "Encapsulación": ["U5-OOP-01"],
+    "Herencia": ["U5-INHERIT-01"],
+    "Polimorfismo": ["U5-INHERIT-01"],
+    "Composición": ["U5-COMP-01"],
+    "Agregación": ["U5-COMP-01"]
+  },
+  "roadmap": {
+    "beginner": {
+      "description": "Estudiantes sin experiencia previa en programación",
+      "path": ["U1-VAR-01", "U1-COND-01", "U2-LIST-01", "U2-TUPLE-01", "U3-FUNC-01"],
+      "estimated_time_hours": 1.5
+    },
+    "intermediate": {
+      "description": "Estudiantes con fundamentos básicos",
+      "path": ["U1-LOOP-01", "U2-DICT-01", "U3-RECUR-01", "U3-LAMBDA-01", "U4-CSV-01", "U4-JSON-01"],
+      "estimated_time_hours": 3.0
+    },
+    "advanced": {
+      "description": "Estudiantes con experiencia previa",
+      "path": ["U4-TXT-01", "U5-OOP-01", "U5-INHERIT-01", "U5-COMP-01"],
+      "estimated_time_hours": 2.7
+    }
+  }
+}

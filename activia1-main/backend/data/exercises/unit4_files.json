@@ -1,0 +1,96 @@
+[
+  {
+    "id": "U4-CSV-01",
+    "meta": {
+      "title": "Procesamiento de CSV: Análisis de Ventas",
+      "difficulty": "Medium",
+      "estimated_time_min": 35,
+      "tags": ["CSV", "Data Cleaning", "File I/O"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2, 3],
+      "placeholder_text": "# Procesa el archivo CSV..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **Data Engineer** en una empresa retail. Te enviaron un archivo CSV con las ventas del mes:\n\n```csv\nproducto,cantidad,precio_unitario\nLaptop,5,1200.00\nMouse,15,25.50\nTeclado,10,85.00\nMonitor,3,350.00\n```\n\n**Archivo:** `ventas.csv`",
+      "mission_markdown": "### Tu Misión\n\n1. Lee el archivo `ventas.csv` usando el módulo **csv**\n2. Calcula el **total** de cada producto (cantidad × precio)\n3. Encuentra el producto con **mayor venta total**\n4. Calcula el **gran total** de todas las ventas\n5. Genera un reporte formateado",
+      "constraints": [
+        "No usar Pandas",
+        "Manejar FileNotFoundError con try-except",
+        "Usar DictReader para leer el CSV"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTAS LÍNEAS\nimport csv\n\ndef procesar_ventas(archivo):\n    \"\"\"\n    Procesa un archivo CSV de ventas.\n    \n    Args:\n        archivo (str): Ruta al archivo CSV\n    \n    Returns:\n        dict: Estadísticas de ventas\n    \"\"\"\n    ventas = []\n    \n    try:\n        # TODO: Abre y lee el archivo CSV\n        with open(archivo, 'r', encoding='utf-8') as f:\n            reader = csv.DictReader(f)\n            \n            # TODO: Procesa cada fila\n            for row in reader:\n                producto = row['producto']\n                cantidad = int(row['cantidad'])\n                precio = float(row['precio_unitario'])\n                \n                # TODO: Calcula el total\n                total = 0.0\n                \n                ventas.append({\n                    'producto': producto,\n                    'total': total\n                })\n        \n        # TODO: Encuentra el producto con mayor venta\n        producto_top = ''\n        venta_maxima = 0.0\n        \n        # TODO: Calcula el gran total\n        gran_total = 0.0\n        \n        return {\n            'producto_top': producto_top,\n            'venta_maxima': venta_maxima,\n            'gran_total': gran_total,\n            'ventas': ventas\n        }\n        \n    except FileNotFoundError:\n        print(f\"Error: El archivo {archivo} no existe\")\n        return None\n\n# Prueba (asume que ventas.csv existe)\nresultado = procesar_ventas('ventas.csv')\nif resultado:\n    print(f\"Producto Top: {resultado['producto_top']}\")\n    print(f\"Gran Total: ${resultado['gran_total']:.2f}\")",
+    "hidden_tests": [
+      {
+        "input": "ventas.csv",
+        "expected": "producto_top == 'Laptop' and gran_total == 8432.50"
+      }
+    ]
+  },
+  {
+    "id": "U4-JSON-01",
+    "meta": {
+      "title": "JSON: API de Usuarios",
+      "difficulty": "Medium",
+      "estimated_time_min": 30,
+      "tags": ["JSON", "API", "Serialización"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2, 3],
+      "placeholder_text": "# Trabaja con JSON..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **Backend Developer** construyendo una API de usuarios. Los datos vienen en formato JSON:\n\n```json\n{\n  \"usuarios\": [\n    {\"id\": 1, \"nombre\": \"Ana\", \"edad\": 28, \"ciudad\": \"Madrid\", \"activo\": true},\n    {\"id\": 2, \"nombre\": \"Carlos\", \"edad\": 35, \"ciudad\": \"Barcelona\", \"activo\": false},\n    {\"id\": 3, \"nombre\": \"Elena\", \"edad\": 22, \"ciudad\": \"Madrid\", \"activo\": true}\n  ]\n}\n```",
+      "mission_markdown": "### Tu Misión\n\n1. Función `cargar_usuarios(archivo_json)` → retorna lista de usuarios\n2. Función `filtrar_activos(usuarios)` → retorna solo activos\n3. Función `agrupar_por_ciudad(usuarios)` → retorna dict {ciudad: [usuarios]}\n4. Función `guardar_json(datos, archivo)` → guarda en formato JSON",
+      "constraints": [
+        "Usar el módulo json estándar",
+        "Manejar errores de lectura/escritura",
+        "Usar indent=2 al guardar JSON"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTAS LÍNEAS\nimport json\n\ndef cargar_usuarios(archivo_json):\n    \"\"\"Carga usuarios desde un archivo JSON.\"\"\"\n    try:\n        # TODO: Lee el archivo JSON\n        with open(archivo_json, 'r', encoding='utf-8') as f:\n            datos = json.load(f)\n        return datos.get('usuarios', [])\n    except FileNotFoundError:\n        print(f\"Error: {archivo_json} no encontrado\")\n        return []\n\ndef filtrar_activos(usuarios):\n    \"\"\"Retorna solo usuarios activos.\"\"\"\n    # TODO: Filtra por activo == True\n    return []\n\ndef agrupar_por_ciudad(usuarios):\n    \"\"\"Agrupa usuarios por ciudad.\"\"\"\n    grupos = {}\n    # TODO: Itera y agrupa\n    for usuario in usuarios:\n        ciudad = usuario['ciudad']\n        # Inicializa la lista si no existe\n        if ciudad not in grupos:\n            grupos[ciudad] = []\n        # Agrega el usuario\n        grupos[ciudad].append(usuario)\n    \n    return grupos\n\ndef guardar_json(datos, archivo):\n    \"\"\"Guarda datos en formato JSON.\"\"\"\n    try:\n        # TODO: Escribe el archivo con indent=2\n        with open(archivo, 'w', encoding='utf-8') as f:\n            json.dump(datos, f, indent=2, ensure_ascii=False)\n        return True\n    except Exception as e:\n        print(f\"Error al guardar: {e}\")\n        return False\n\n# Prueba\nusuarios = cargar_usuarios('usuarios.json')\nactivos = filtrar_activos(usuarios)\ngrupos = agrupar_por_ciudad(usuarios)\nprint(f\"Usuarios activos: {len(activos)}\")\nprint(f\"Ciudades: {list(grupos.keys())}\")",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "len(activos) == 2"
+      },
+      {
+        "input": "",
+        "expected": "'Madrid' in grupos and 'Barcelona' in grupos"
+      }
+    ]
+  },
+  {
+    "id": "U4-TXT-01",
+    "meta": {
+      "title": "Procesamiento de Texto: Análisis de Log",
+      "difficulty": "Hard",
+      "estimated_time_min": 40,
+      "tags": ["File I/O", "String Processing", "Parsing"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "# Analiza el archivo de log..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **DevOps Engineer** analizando logs de un servidor web.\n\n**Formato del log:**\n```\n2024-01-15 10:23:45 INFO Usuario login exitoso: user123\n2024-01-15 10:25:12 ERROR Fallo de conexión: database timeout\n2024-01-15 10:30:01 WARNING Alto uso de CPU: 85%\n2024-01-15 10:31:50 INFO Archivo subido: imagen.png\n2024-01-15 10:35:22 ERROR Autenticación fallida: invalid_token\n```",
+      "mission_markdown": "### Tu Misión\n\n1. Lee el archivo `server.log`\n2. Cuenta eventos por **nivel** (INFO, WARNING, ERROR)\n3. Extrae todos los mensajes de **ERROR**\n4. Encuentra la hora del **primer** y **último** evento\n5. Genera un reporte de análisis",
+      "constraints": [
+        "Procesa línea por línea (no cargar todo en memoria)",
+        "Usa string.split() para parsear",
+        "Maneja líneas malformadas sin crashear"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTA LÍNEA\n\ndef analizar_log(archivo_log):\n    \"\"\"\n    Analiza un archivo de log del servidor.\n    \n    Args:\n        archivo_log (str): Ruta al archivo de log\n    \n    Returns:\n        dict: Estadísticas del análisis\n    \"\"\"\n    contadores = {'INFO': 0, 'WARNING': 0, 'ERROR': 0}\n    errores = []\n    primera_hora = None\n    ultima_hora = None\n    \n    try:\n        with open(archivo_log, 'r', encoding='utf-8') as f:\n            for linea in f:\n                # TODO: Parsea la línea (formato: fecha hora nivel mensaje)\n                partes = linea.strip().split(' ', 3)\n                \n                if len(partes) < 4:\n                    continue  # Línea malformada\n                \n                fecha = partes[0]\n                hora = partes[1]\n                nivel = partes[2]\n                mensaje = partes[3]\n                \n                # TODO: Actualiza contadores\n                \n                # TODO: Guarda errores\n                \n                # TODO: Actualiza primera/última hora\n                if primera_hora is None:\n                    primera_hora = hora\n                ultima_hora = hora\n        \n        return {\n            'contadores': contadores,\n            'errores': errores,\n            'primera_hora': primera_hora,\n            'ultima_hora': ultima_hora,\n            'total_eventos': sum(contadores.values())\n        }\n        \n    except FileNotFoundError:\n        print(f\"Error: {archivo_log} no existe\")\n        return None\n\n# Prueba\nresultado = analizar_log('server.log')\nif resultado:\n    print(\"=== ANÁLISIS DE LOG ===\")\n    print(f\"Total eventos: {resultado['total_eventos']}\")\n    print(f\"Errores: {resultado['contadores']['ERROR']}\")\n    print(f\"Periodo: {resultado['primera_hora']} - {resultado['ultima_hora']}\")",
+    "hidden_tests": [
+      {
+        "input": "server.log",
+        "expected": "contadores['ERROR'] == 2 and contadores['INFO'] == 2"
+      }
+    ]
+  }
+]

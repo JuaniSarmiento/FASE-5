@@ -37,8 +37,11 @@ env/
 .DS_Store
 Thumbs.db
 
-# Data
-data/
+# Data - ignorar bases de datos pero NO los ejercicios
+data/*.db
+data/*.sqlite
+!data/exercises/
+!data/exercises/**
 *.db
 *.sqlite
 

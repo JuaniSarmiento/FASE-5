@@ -1,0 +1,116 @@
+[
+  {
+    "id": "U1-VAR-01",
+    "meta": {
+      "title": "Variables y Tipos de Datos",
+      "difficulty": "Easy",
+      "estimated_time_min": 15,
+      "tags": ["Variables", "Tipos de Datos", "Fundamentos"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2, 3],
+      "placeholder_text": "# Escribe tu solución aquí..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **Data Analyst Junior** en una startup. Tu jefe te pide analizar las ventas del primer trimestre.\n\n**Datos del trimestre:**\n- Enero: $12,500\n- Febrero: $15,300\n- Marzo: $14,800\n\nNecesitas calcular el total y el promedio mensual.",
+      "mission_markdown": "### Tu Misión\n\n1. Crea **3 variables** para almacenar las ventas de cada mes\n2. Calcula el **total** de ventas del trimestre\n3. Calcula el **promedio** mensual\n4. Imprime los resultados en formato legible",
+      "constraints": [
+        "Usa nombres de variables descriptivos (ej: ventas_enero)",
+        "El promedio debe tener 2 decimales",
+        "Usa f-strings para los print statements"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTAS LÍNEAS\n# Ejercicio: Variables y Tipos de Datos\n\n# TODO: Declara las variables de ventas mensuales\nventas_enero = 0\nventas_febrero = 0\nventas_marzo = 0\n\n# TODO: Calcula el total y el promedio\ntotal = 0\npromedio = 0.0\n\n# TODO: Imprime los resultados\nprint(f\"Total trimestre: ${total}\")\nprint(f\"Promedio mensual: ${promedio:.2f}\")",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "total == 42600 and promedio == 14200.00"
+      }
+    ]
+  },
+  {
+    "id": "U1-COND-01",
+    "meta": {
+      "title": "Estructuras Condicionales: Sistema de Calificaciones",
+      "difficulty": "Easy",
+      "estimated_time_min": 20,
+      "tags": ["Condicionales", "if-elif-else", "Lógica"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "# Completa la función..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nTrabajas en el sistema académico de una universidad. El profesor necesita automatizar la asignación de **letras** a las calificaciones numéricas.\n\n**Escala:**\n- 90-100: **A** (Excelente)\n- 80-89: **B** (Notable)\n- 70-79: **C** (Aprobado)\n- 60-69: **D** (Suficiente)\n- 0-59: **F** (Reprobado)",
+      "mission_markdown": "### Tu Misión\n\n1. Completa la función `obtener_letra(nota)`\n2. Valida que la nota esté entre **0 y 100**\n3. Retorna la letra correspondiente\n4. Maneja el caso de notas inválidas retornando `\"INVALID\"`",
+      "constraints": [
+        "Usa elif para optimizar las comparaciones",
+        "No usar librerías externas",
+        "La función debe ser pura (sin efectos secundarios)"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTA LÍNEA\ndef obtener_letra(nota):\n    \"\"\"\n    Convierte una nota numérica a letra.\n    Args:\n        nota (int/float): Calificación entre 0-100\n    Returns:\n        str: Letra (A, B, C, D, F) o \"INVALID\"\n    \"\"\"\n    # TODO: Valida que nota esté entre 0-100\n    \n    # TODO: Implementa la lógica de conversión\n    \n    pass\n\n# Casos de prueba\nprint(obtener_letra(95))   # Debe imprimir: A\nprint(obtener_letra(82))   # Debe imprimir: B\nprint(obtener_letra(105))  # Debe imprimir: INVALID",
+    "hidden_tests": [
+      {
+        "input": "95",
+        "expected": "A"
+      },
+      {
+        "input": "82",
+        "expected": "B"
+      },
+      {
+        "input": "75",
+        "expected": "C"
+      },
+      {
+        "input": "65",
+        "expected": "D"
+      },
+      {
+        "input": "45",
+        "expected": "F"
+      },
+      {
+        "input": "105",
+        "expected": "INVALID"
+      },
+      {
+        "input": "-10",
+        "expected": "INVALID"
+      }
+    ]
+  },
+  {
+    "id": "U1-LOOP-01",
+    "meta": {
+      "title": "Bucles: Análisis de Temperaturas",
+      "difficulty": "Medium",
+      "estimated_time_min": 25,
+      "tags": ["Bucles", "Listas", "Estadísticas"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2, 3, 4],
+      "placeholder_text": "# Completa el análisis..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **científico de datos** en una estación meteorológica. Tienes las temperaturas de la última semana y necesitas hacer un **análisis estadístico básico**.\n\n**Datos:**\n```python\ntemperaturas = [23.5, 25.1, 22.8, 24.3, 26.0, 23.9, 25.5]\n```",
+      "mission_markdown": "### Tu Misión\n\n1. Calcula la **temperatura promedio**\n2. Encuentra la **temperatura máxima** y **mínima**\n3. Cuenta cuántos días la temperatura fue **mayor al promedio**\n4. Genera un reporte formateado con los resultados",
+      "constraints": [
+        "No usar funciones built-in como max(), min(), sum() directamente",
+        "Implementa tu propia lógica con bucles for",
+        "Redondea el promedio a 2 decimales"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTAS LÍNEAS\n# Ejercicio: Análisis de Temperaturas\ntemperaturas = [23.5, 25.1, 22.8, 24.3, 26.0, 23.9, 25.5]\n\n# TODO: Calcula el promedio\ntotal_temp = 0\nfor temp in temperaturas:\n    # Tu código aquí\n    pass\n\npromedio = 0.0\n\n# TODO: Encuentra máxima y mínima\ntemp_max = temperaturas[0]\ntemp_min = temperaturas[0]\n\nfor temp in temperaturas:\n    # Tu código aquí\n    pass\n\n# TODO: Cuenta días sobre el promedio\ndias_sobre_promedio = 0\n\n# TODO: Imprime el reporte\nprint(\"=== REPORTE METEOROLÓGICO ===\")\nprint(f\"Promedio: {promedio:.2f}°C\")\nprint(f\"Máxima: {temp_max}°C\")\nprint(f\"Mínima: {temp_min}°C\")\nprint(f\"Días sobre promedio: {dias_sobre_promedio}\")",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "promedio == 24.44 and temp_max == 26.0 and temp_min == 22.8 and dias_sobre_promedio == 3"
+      }
+    ]
+  }
+]
