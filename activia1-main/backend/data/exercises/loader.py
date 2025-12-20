@@ -23,12 +23,14 @@ class ExerciseLoader:
         return []
 
     def get_stats(self) -> Dict[str, Any]:
-        """Return empty stats."""
+        """Return empty stats with correct keys expected by the endpoint."""
         return {
-            "total": 0,
+            "total_exercises": 0,
             "by_difficulty": {},
-            "by_topic": {},
-            "by_language": {}
+            "by_language": {},
+            "by_framework": {},
+            "total_time_hours": 0,
+            "unique_tags": []
         }
 
     def get_available_filters(self) -> Dict[str, List[str]]:
