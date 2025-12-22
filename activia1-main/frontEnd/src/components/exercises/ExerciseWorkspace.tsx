@@ -5,14 +5,17 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { 
-  ArrowLeft, 
-  Play, 
-  BookOpen, 
+import {
+  ArrowLeft,
+  Play,
+  BookOpen,
   Lightbulb,
   Code,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Clock,
+  Award,
+  CheckCircle
 } from 'lucide-react';
 import { exercisesService } from '@/services/api/exercises.service';
 import { IExercise, IEvaluationResult } from '@/types';
