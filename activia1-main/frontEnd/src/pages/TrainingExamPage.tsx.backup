@@ -1,0 +1,876 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import Editor from '@monaco-editor/react';
+import {
+  Clock,
+  Send,
+  CheckCircle,
+  XCircle,
+  TrendingUp,
+  Award,
+  ArrowLeft,
+  ChevronRight
+} from 'lucide-react';
+import { trainingService, SesionEntrenamiento, ResultadoFinal, EjercicioActual, SubmitEjercicioResponse } from '../services/api';
+
+/**
+ * TrainingExamPage - Examen con múltiples ejercicios progresivos
+ * 
+ * Características:
+ * - Temporizador de cuenta regresiva
+ * - Editor de código Monaco
+ * - Avance ejercicio por ejercicio
+ * - Evaluación automática con tests
+ * - Nota final al completar todos los ejercicios
+ */
+
+const TrainingExamPage: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  const { materia_codigo, tema_id } = location.state || {};
+  
+  const [sesion, setSesion] = useState<SesionEntrenamiento | null>(null);
+  const [ejercicioActual, setEjercicioActual] = useState<EjercicioActual | null>(null);
+  const [codigo, setCodigo] = useState<string>('');
+  const [tiempoRestante, setTiempoRestante] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [resultadoFinal, setResultadoFinal] = useState<ResultadoFinal | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [ejerciciosCompletados, setEjerciciosCompletados] = useState<number>(0);
+  const [mostrarResultadoEjercicio, setMostrarResultadoEjercicio] = useState<boolean>(false);
+  const [ultimoResultado, setUltimoResultado] = useState<any>(null);
+  
+  const timerRef = useRef<number | null>(null);
+
+  // Iniciar sesión al montar
+  useEffect(() => {
+    if (!materia_codigo || !tema_id) {
+      navigate('/training');
+      return;
+    }
+    
+    iniciarSesion();
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [materia_codigo, tema_id]);
+
+  const iniciarSesion = async () => {
+    try {
+      setLoading(true);
+      const data = await trainingService.iniciarEntrenamiento({
+        materia_codigo,
+        tema_id
+      });
+      
+      setSesion(data);
+      setEjercicioActual(data.ejercicio_actual);
+      setCodigo(data.ejercicio_actual.codigo_inicial);
+      setEjerciciosCompletados(data.ejercicios_completados);
+      
+      // Calcular tiempo restante inicial
+      const inicio = new Date(data.inicio).getTime();
+      const fin = new Date(data.fin_estimado).getTime();
+      const restante = Math.floor((fin - Date.now()) / 1000);
+      setTiempoRestante(restante);
+      
+      // Iniciar temporizador
+      timerRef.current = window.setInterval(() => {
+        setTiempoRestante((prev) => {
+          if (prev <= 1) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            handleTimeExpired();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+    } catch (err) {
+      console.error('Error iniciando sesión:', err);
+      setError('Error al iniciar la sesión de entrenamiento');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTimeExpired = () => {
+    alert('¡Tiempo agotado! El examen ha finalizado.');
+    navigate('/training');
+  };
+
+  const handleSubmitEjercicio = async () => {
+    if (!sesion || !codigo.trim()) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      
+      const response: SubmitEjercicioResponse = await trainingService.submitEjercicio({
+        session_id: sesion.session_id,
+        codigo_usuario: codigo
+      });
+      
+      setUltimoResultado(response.resultado);
+      setMostrarResultadoEjercicio(true);
+      
+      if (response.hay_siguiente && response.siguiente_ejercicio) {
+        // Hay más ejercicios, preparar el siguiente
+        setTimeout(() => {
+          setEjercicioActual(response.siguiente_ejercicio!);
+          setCodigo(response.siguiente_ejercicio!.codigo_inicial);
+          setEjerciciosCompletados(prev => prev + 1);
+          setMostrarResultadoEjercicio(false);
+        }, 2000);
+      } else if (response.resultado_final) {
+        // Último ejercicio, mostrar resultado final
+        setTimeout(() => {
+          setResultadoFinal(response.resultado_final!);
+          if (timerRef.current) clearInterval(timerRef.current);
+        }, 2000);
+      }
+      
+    } catch (err: any) {
+      console.error('Error enviando ejercicio:', err);
+      setError(err.response?.data?.detail || 'Error al evaluar el ejercicio');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTimeExpired = async () => {
+    alert('⏰ ¡Tiempo terminado! El examen se enviará automáticamente.');
+    await handleSubmit();
+  };
+
+  const handleSolicitarPista = async (numeroPista: number) => {
+    if (!sesion) return;
+    
+    // Verificar que no se haya usado ya
+    if (pistasUsadas.some(p => p.numero === numeroPista)) {
+      alert('Ya has usado esta pista');
+      return;
+    }
+    
+    try {
+      const pista = await trainingService.solicitarPista({
+        session_id: sesion.session_id,
+        numero_pista: numeroPista
+      });
+      
+      setPistasUsadas([...pistasUsadas, pista]);
+      setMostrarPistas(false);
+      
+    } catch (err: any) {
+      console.error('Error solicitando pista:', err);
+      alert(err.response?.data?.detail || 'Error al solicitar la pista');
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!sesion) return;
+    
+    const confirmacion = window.confirm(
+      '¿Estás seguro de enviar tu código? Esta acción no se puede deshacer.'
+    );
+    
+    if (!confirmacion) return;
+    
+    try {
+      setSubmitting(true);
+      
+      // Detener temporizador
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      
+      const resultado = await trainingService.submitExamen({
+        session_id: sesion.session_id,
+        codigo_usuario: codigo
+      });
+      
+      setResultado(resultado);
+      
+    } catch (err) {
+      console.error('Error enviando código:', err);
+      setError('Error al evaluar tu código');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const formatTime = (segundos: number): string => {
+    const minutos = Math.floor(segundos / 60);
+    const segs = segundos % 60;
+    return `${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
+  };
+
+  const getTimeColor = (): string => {
+    if (tiempoRestante > 600) return 'text-green-400'; // > 10 min
+    if (tiempoRestante > 300) return 'text-yellow-400'; // > 5 min
+    return 'text-red-400 animate-pulse'; // < 5 min
+  };
+
+  // =========================================================================
+  // LOADING
+  // =========================================================================
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Cargando ejercicios...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // RESULTADO FINAL
+  // =========================================================================
+  
+  if (resultadoFinal) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
+        <div className="max-w-4xl mx-auto">
+          
+          {/* Header de resultados */}
+          <div className="text-center mb-8">
+            {resultadoFinal.aprobado ? (
+              <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-green-500/10 mb-4">
+                <CheckCircle className="w-16 h-16 text-green-400" />
+              </div>
+            ) : (
+              <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-red-500/10 mb-4">
+                <XCircle className="w-16 h-16 text-red-400" />
+              </div>
+            )}
+            
+            <h1 className="text-4xl font-bold gradient-text mb-2">
+              {resultadoFinal.aprobado ? '¡Aprobado!' : 'Necesitas mejorar'}
+            </h1>
+            <p className="text-gray-400">Completaste {resultadoFinal.total_ejercicios} ejercicios</p>
+          </div>
+
+          {/* Nota final */}
+          <div className="glass rounded-2xl p-8 mb-6">
+            <div className="text-center mb-6">
+              <div className="text-6xl font-bold gradient-text mb-2">
+                {resultadoFinal.nota_final.toFixed(1)}
+              </div>
+              <p className="text-gray-400">Nota Final</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-green-400 mb-1">
+                  {resultadoFinal.ejercicios_correctos}
+                </div>
+                <p className="text-sm text-gray-400">Correctos</p>
+              </div>
+              
+              <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-purple-400 mb-1">
+                  {resultadoFinal.porcentaje.toFixed(0)}%
+                </div>
+                <p className="text-sm text-gray-400">Porcentaje</p>
+              </div>
+              
+              <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-blue-400 mb-1">
+                  {resultadoFinal.tiempo_usado_min} min
+                </div>
+                <p className="text-sm text-gray-400">Tiempo usado</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Detalle de ejercicios */}
+          <div className="glass rounded-xl p-6 mb-6">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-purple-400" />
+              Resultados por Ejercicio
+            </h3>
+            
+            <div className="space-y-3">
+              {resultadoFinal.resultados_detalle.map((r: any) => (
+                <div key={r.numero} className="bg-gray-800/50 rounded-lg p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {r.correcto ? (
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-400" />
+                    )}
+                    <span className="text-white font-medium">Ejercicio {r.numero}</span>
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    {r.tests_pasados}/{r.tests_totales} tests
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Botones */}
+          <div className="flex gap-4">
+            <button
+              onClick={() => navigate('/training')}
+              className="flex-1 py-3 px-6 rounded-xl bg-gray-700 text-white font-medium hover:bg-gray-600 transition-colors"
+            >
+              Volver al menú
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="flex-1 py-3 px-6 rounded-xl gradient-bg text-white font-medium hover:opacity-90 transition-opacity"
+            >
+              Intentar de nuevo
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // EJERCICIO ACTUAL
+  // =========================================================================
+  
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={() => navigate('/training')}
+            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Cancelar
+          </button>
+          
+          <div className="flex items-center gap-6">
+            {/* Progreso */}
+            <div className="text-center">
+              <div className="text-sm text-gray-400">Progreso</div>
+              <div className="text-xl font-bold text-white">
+                {ejerciciosCompletados} / {sesion?.total_ejercicios || 0}
+              </div>
+            </div>
+            
+            {/* Timer */}
+            <div className="text-center">
+              <div className="text-sm text-gray-400">Tiempo restante</div>
+              <div className={`text-2xl font-mono font-bold ${getTimeColor()}`}>
+                <Clock className="w-5 h-5 inline mr-2" />
+                {formatTime(tiempoRestante)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Barra de progreso visual */}
+        <div className="mb-6">
+          <div className="flex gap-1">
+            {Array.from({ length: sesion?.total_ejercicios || 0 }).map((_, i) => (
+              <div
+                key={i}
+                className={`flex-1 h-2 rounded-full transition-colors ${
+                  i < ejerciciosCompletados
+                    ? 'bg-green-500'
+                    : i === ejerciciosCompletados
+                    ? 'bg-purple-500 animate-pulse'
+                    : 'bg-gray-700'
+                }`}
+              ></div>
+            ))}
+          </div>
+        </div>
+
+        {/* Resultado del ejercicio anterior */}
+        {mostrarResultadoEjercicio && ultimoResultado && (
+          <div className={`glass rounded-xl p-6 mb-6 border-l-4 ${
+            ultimoResultado.correcto ? 'border-green-500' : 'border-red-500'
+          }`}>
+            <div className="flex items-center gap-4">
+              {ultimoResultado.correcto ? (
+                <CheckCircle className="w-8 h-8 text-green-400" />
+              ) : (
+                <XCircle className="w-8 h-8 text-red-400" />
+              )}
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  {ultimoResultado.correcto ? '¡Correcto!' : 'Incorrecto'}
+                </h3>
+                <p className="text-gray-400">
+                  {ultimoResultado.tests_pasados}/{ultimoResultado.tests_totales} tests pasados
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="glass rounded-xl p-4 mb-6 bg-red-500/10 border border-red-500/20">
+            <p className="text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* Grid principal */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          {/* Panel izquierdo - Consigna */}
+          <div className="glass rounded-xl p-6">
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-2xl font-bold gradient-text">
+                  Ejercicio {ejercicioActual?.numero}
+                </h2>
+                <span className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-400 text-sm font-medium">
+                  {sesion?.tema}
+                </span>
+              </div>
+            </div>
+            
+            <div className="bg-gray-800/50 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-3">Consigna:</h3>
+              <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
+                {ejercicioActual?.consigna}
+              </p>
+            </div>
+          </div>
+
+          {/* Panel derecho - Editor */}
+          <div className="glass rounded-xl p-6">
+            <h3 className="text-lg font-bold text-white mb-4">Editor de Código</h3>
+            
+            <div className="border border-gray-700 rounded-xl overflow-hidden mb-4" style={{ height: '400px' }}>
+              <Editor
+                height="100%"
+                defaultLanguage="python"
+                theme="vs-dark"
+                value={codigo}
+                onChange={(value) => setCodigo(value || '')}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 14,
+                  lineNumbers: 'on',
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  tabSize: 4,
+                }}
+              />
+            </div>
+
+            <button
+              onClick={handleSubmitEjercicio}
+              disabled={submitting || !codigo.trim()}
+              className="w-full py-3 px-6 rounded-xl gradient-bg text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            >
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  Evaluando...
+                </>
+              ) : (
+                <>
+                  <Send className="w-5 h-5" />
+                  Enviar Ejercicio
+                  <ChevronRight className="w-5 h-5" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TrainingExamPage;
+
+  // =========================================================================
+  // RENDERIZADO DE RESULTADOS
+  // =========================================================================
+  
+  if (resultado) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
+        <div className="max-w-4xl mx-auto">
+          
+          {/* Header de resultados */}
+          <div className="text-center mb-8">
+            {resultado.aprobado ? (
+              <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-green-500/10 mb-4">
+                <CheckCircle className="w-16 h-16 text-green-400" />
+              </div>
+            ) : (
+              <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-red-500/10 mb-4">
+                <XCircle className="w-16 h-16 text-red-400" />
+              </div>
+            )}
+            
+            <h1 className="text-4xl font-bold gradient-text mb-2">
+              {resultado.aprobado ? '¡Aprobado!' : 'Necesitas mejorar'}
+            </h1>
+            <p className="text-gray-400">Aquí están los resultados de tu examen</p>
+          </div>
+
+          {/* Nota final */}
+          <div className="glass rounded-2xl p-8 mb-6">
+            <div className="text-center mb-6">
+              <div className="text-6xl font-bold gradient-text mb-2">
+                {resultado.nota_final.toFixed(1)}
+              </div>
+              <p className="text-gray-400">Nota Final</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-white mb-1">
+                  {resultado.nota_base.toFixed(1)}
+                </div>
+                <p className="text-sm text-gray-400">Nota Base</p>
+              </div>
+              
+              <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-red-400 mb-1">
+                  -{resultado.penalizacion_pistas}
+                </div>
+                <p className="text-sm text-gray-400">Penalización</p>
+              </div>
+              
+              <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-purple-400 mb-1">
+                  {resultado.pistas_usadas}/4
+                </div>
+                <p className="text-sm text-gray-400">Pistas Usadas</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tests */}
+          <div className="glass rounded-xl p-6 mb-6">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-purple-400" />
+              Tests Automáticos
+            </h3>
+            
+            <div className="flex items-center gap-4">
+              <div className="flex-1 bg-gray-800/50 rounded-full h-3 overflow-hidden">
+                <div
+                  className={`h-full transition-all ${
+                    resultado.tests_pasados === resultado.tests_totales
+                      ? 'bg-green-500'
+                      : 'bg-yellow-500'
+                  }`}
+                  style={{
+                    width: `${(resultado.tests_pasados / resultado.tests_totales) * 100}%`
+                  }}
+                ></div>
+              </div>
+              <span className="text-white font-bold">
+                {resultado.tests_pasados}/{resultado.tests_totales}
+              </span>
+            </div>
+          </div>
+
+          {/* Feedback IA */}
+          <div className="glass rounded-xl p-6 mb-6">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-400" />
+              Feedback de la IA
+            </h3>
+            <p className="text-gray-300 leading-relaxed">{resultado.feedback_ia}</p>
+          </div>
+
+          {/* Fortalezas */}
+          {resultado.fortalezas.length > 0 && (
+            <div className="glass rounded-xl p-6 mb-6">
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <Award className="w-5 h-5 text-green-400" />
+                Fortalezas
+              </h3>
+              <ul className="space-y-2">
+                {resultado.fortalezas.map((fortaleza, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-gray-300">
+                    <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                    {fortaleza}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Mejoras */}
+          {resultado.mejoras.length > 0 && (
+            <div className="glass rounded-xl p-6 mb-6">
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                Áreas de Mejora
+              </h3>
+              <ul className="space-y-2">
+                {resultado.mejoras.map((mejora, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-gray-300">
+                    <XCircle className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
+                    {mejora}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Botón volver */}
+          <div className="text-center">
+            <button
+              onClick={() => navigate('/training')}
+              className="px-8 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-bold text-white transition-colors flex items-center gap-2 mx-auto"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Volver a Temas
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // RENDERIZADO PRINCIPAL (EXAMEN)
+  // =========================================================================
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mb-4"></div>
+          <p className="text-gray-400">Preparando examen...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sesion) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-400">Error: No se pudo iniciar la sesión</p>
+          <button
+            onClick={() => navigate('/training')}
+            className="mt-4 px-6 py-2 bg-purple-600 rounded-lg text-white"
+          >
+            Volver
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
+      <div className="max-w-7xl mx-auto">
+        
+        {/* Top bar - Tiempo y acciones */}
+        <div className="glass rounded-xl p-4 mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Clock className={`w-5 h-5 ${getTimeColor()}`} />
+              <span className={`text-2xl font-bold ${getTimeColor()}`}>
+                {formatTime(tiempoRestante)}
+              </span>
+            </div>
+            
+            <div className="text-sm text-gray-400">
+              Pistas usadas: <span className="text-white font-medium">{pistasUsadas.length}/4</span>
+              {pistasUsadas.length > 0 && (
+                <span className="text-red-400 ml-2">(-{pistasUsadas.reduce((sum, p) => sum + p.penalizacion, 0)} pts)</span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              onClick={() => setMostrarPistas(!mostrarPistas)}
+              disabled={pistasUsadas.length >= 4}
+              className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors ${
+                pistasUsadas.length >= 4
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  : 'bg-yellow-600 hover:bg-yellow-700 text-white'
+              }`}
+            >
+              <Lightbulb className="w-4 h-4" />
+              Pistas ({4 - pistasUsadas.length})
+            </button>
+            
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-bold text-white flex items-center gap-2 hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Send className="w-4 h-4" />
+              {submitting ? 'Enviando...' : 'Entregar Examen'}
+            </button>
+          </div>
+        </div>
+
+        {/* Layout principal */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          
+          {/* Columna izquierda - Consigna y requisitos */}
+          <div className="lg:col-span-1 space-y-4">
+            
+            {/* Título del ejercicio */}
+            <div className="glass rounded-xl p-6">
+              <h2 className="text-2xl font-bold text-white mb-2">{sesion.titulo_ejercicio}</h2>
+              <p className="text-sm text-gray-400">{sesion.tema}</p>
+            </div>
+            
+            {/* Consigna */}
+            <div className="glass rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-3">📋 Consigna</h3>
+              <p className="text-gray-300 leading-relaxed whitespace-pre-line">{sesion.consigna}</p>
+            </div>
+            
+            {/* Contexto */}
+            <div className="glass rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-3">🎯 Contexto</h3>
+              <p className="text-gray-300 leading-relaxed">{sesion.contexto}</p>
+            </div>
+            
+            {/* Requisitos */}
+            <div className="glass rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-3">✅ Requisitos</h3>
+              <ul className="space-y-2">
+                {sesion.requisitos.map((req, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-gray-300 text-sm">
+                    <span className="text-purple-400 font-bold mt-0.5">{idx + 1}.</span>
+                    {req}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            
+            {/* Pistas usadas */}
+            {pistasUsadas.length > 0 && (
+              <div className="glass rounded-xl p-6">
+                <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5 text-yellow-400" />
+                  Pistas Usadas
+                </h3>
+                <div className="space-y-3">
+                  {pistasUsadas.map((pista) => (
+                    <div key={pista.numero} className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-bold text-yellow-400">Pista {pista.numero}</span>
+                        <span className="text-xs text-red-400">-{pista.penalizacion} pts</span>
+                      </div>
+                      <p className="text-sm font-medium text-white mb-1">{pista.titulo}</p>
+                      <p className="text-xs text-gray-300">{pista.contenido}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+          </div>
+          
+          {/* Columna derecha - Editor de código */}
+          <div className="lg:col-span-2">
+            <div className="glass rounded-xl p-4 h-[calc(100vh-200px)]">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span className="text-2xl">💻</span>
+                  Editor de Código
+                </h3>
+                <span className="text-sm text-gray-400">Python</span>
+              </div>
+              
+              <div className="h-[calc(100%-40px)] rounded-lg overflow-hidden border border-gray-700">
+                <Editor
+                  height="100%"
+                  defaultLanguage="python"
+                  theme="vs-dark"
+                  value={codigo}
+                  onChange={(value) => setCodigo(value || '')}
+                  options={{
+                    fontSize: 14,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    padding: { top: 16, bottom: 16 },
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          
+        </div>
+
+        {/* Modal de pistas */}
+        {mostrarPistas && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="glass rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <Lightbulb className="w-6 h-6 text-yellow-400" />
+                  Pistas Disponibles
+                </h2>
+                <button
+                  onClick={() => setMostrarPistas(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
+                <p className="text-red-300 text-sm">
+                  ⚠️ <strong>Atención:</strong> Cada pista reducirá tu nota final. Usa solo las que realmente necesites.
+                </p>
+              </div>
+              
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((num) => {
+                  const yaUsada = pistasUsadas.some(p => p.numero === num);
+                  return (
+                    <button
+                      key={num}
+                      onClick={() => handleSolicitarPista(num)}
+                      disabled={yaUsada}
+                      className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                        yaUsada
+                          ? 'bg-gray-800/50 border-gray-700 opacity-50 cursor-not-allowed'
+                          : 'bg-yellow-500/5 border-yellow-500/30 hover:border-yellow-500 hover:bg-yellow-500/10'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-white">Pista #{num}</span>
+                        <span className="text-sm text-red-400">-{num * 5} puntos</span>
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        {yaUsada ? '✓ Ya usaste esta pista' : 'Click para revelar'}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};
+
+export default TrainingExamPage;

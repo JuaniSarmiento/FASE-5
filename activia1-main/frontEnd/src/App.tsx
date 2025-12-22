@@ -17,6 +17,8 @@ import EvaluatorPage from './pages/EvaluatorPage';
 import RisksPage from './pages/RisksPage';
 import GitAnalyticsPage from './pages/GitAnalyticsPage';
 import TraceabilityPage from './pages/TraceabilityPage';
+import TrainingPage from './pages/TrainingPage';
+import TrainingExamPage from './pages/TrainingExamPage';
 
 function App() {
   return (
@@ -54,6 +56,9 @@ function App() {
               <Route path="risks" element={<ErrorBoundary><RisksPage /></ErrorBoundary>} />
               <Route path="git" element={<ErrorBoundary><GitAnalyticsPage /></ErrorBoundary>} />
               <Route path="traceability" element={<ErrorBoundary><TraceabilityPage /></ErrorBoundary>} />
+              {/* Entrenador Digital - Nuevo sistema */}
+              <Route path="training" element={<ErrorBoundary><TrainingPage /></ErrorBoundary>} />
+              <Route path="training/exam" element={<ErrorBoundary><TrainingExamPage /></ErrorBoundary>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
           </Routes>

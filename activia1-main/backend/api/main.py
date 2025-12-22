@@ -47,6 +47,7 @@ from .routers.evaluations import router as evaluations_router
 from .routers.events import router as events_router
 from .routers.exercises import router as exercises_router
 from .routers.auth_new import router as auth_new_router
+from .routers.training import router as training_router
 from .middleware import setup_exception_handlers, setup_logging_middleware
 from .middleware.rate_limiter import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -313,6 +314,7 @@ app.include_router(evaluations_router, prefix=API_V1_PREFIX)
 app.include_router(events_router, prefix=API_V1_PREFIX)
 app.include_router(exercises_router, prefix=API_V1_PREFIX)
 app.include_router(auth_new_router, prefix=API_V1_PREFIX)
+app.include_router(training_router, prefix=API_V1_PREFIX)
 
 # FASE 3.2 - Nuevos componentes de UI y Trazabilidad N4 Completa
 from .routers.cognitive_status import router as cognitive_status_router

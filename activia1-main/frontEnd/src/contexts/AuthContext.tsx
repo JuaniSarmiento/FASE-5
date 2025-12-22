@@ -72,7 +72,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     payload.full_name = fullName.trim();
   }
   
-  await authService.register(payload);
+  // Registrar y hacer auto-login guardando los tokens
+  const result = await authService.register(payload, true);
+  
+  // Actualizar el estado del usuario si se hizo auto-login
+  if (result.user) {
+    // Convertir null a undefined para compatibilidad de tipos
+    const userForState = {
+      ...result.user,
+      full_name: result.user.full_name || undefined
+    };
+    setUser(userForState as any);
+  }
 };
 
   const logout = () => {

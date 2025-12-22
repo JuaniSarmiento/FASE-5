@@ -45,6 +45,21 @@ export { authService } from './auth.service';
 export { adminService } from './admin.service';
 export { cognitivePathService } from './cognitivePath.service';
 export { institutionalRisksService } from './institutionalRisks.service';
+export { trainingService } from './training.service';
+export type { 
+  TemaInfo, 
+  MateriaInfo, 
+  SesionEntrenamiento,
+  EjercicioActual,
+  SubmitEjercicioRequest,
+  SubmitEjercicioResponse,
+  ResultadoEjercicio,
+  ResultadoFinal,
+  PistaResponse,
+  SolicitarPistaRequest,
+  CorreccionIARequest,
+  CorreccionIAResponse
+} from './training.service';
 
 // === Types from auth.service (user-specific) ===
 export type { User, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse } from './auth.service';
