@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY backend/ ./backend/
 
+# Explicitly copy exercise data files (ensure they're included)
+COPY backend/data/exercises/ ./backend/data/exercises/
+
 # Expose port
 EXPOSE 8000
 

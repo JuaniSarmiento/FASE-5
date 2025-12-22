@@ -144,5 +144,10 @@ ollama-data/
 prometheus-data/
 grafana-data/
 
+# IMPORTANTE: NO excluir ejercicios (necesarios en runtime)
+!backend/data/
+!backend/data/exercises/
+!backend/data/exercises/*.json
+
 # Scripts de verificación
 scripts/verify-deploy.sh
