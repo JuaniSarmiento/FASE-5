@@ -118,36 +118,37 @@ export const ExerciseWorkspace: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dient-to-br from-indigo-50 via-purple-50 to-pink-50">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      {/* Header con gradiente */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg">
-        <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="bg-white shadow-md border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/exercises')}
-                className="text-white hover:bg-white/20 p-2 rounded-lg transition-all"
+                className="text-gray-600 hover:text-gray-800 hover:bg-gray-100 p-2 rounded-lg transition-all"
               >
                 <ArrowLeft size={24} />
               </button>
               <div>
-                <h1 className="text-3xl font-bold text-white">{exercise.meta.title}</h1>
+                <h1 className="text-2xl font-bold text-gray-800">{exercise.meta.title}</h1>
                 <div className="flex items-center gap-3 mt-2">
-                  <span className="text-indigo-100 text-sm font-mono">{exercise.id}</span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    exercise.meta.difficulty === 'Easy' ? 'bg-green-400 text-green-900' :
-                    exercise.meta.difficulty === 'Medium' ? 'bg-yellow-400 text-yellow-900' :
-                    'bg-red-400 text-red-900'
+                  <span className="text-gray-500 text-sm font-mono">{exercise.id}</span>
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                    exercise.meta.difficulty === 'Easy' ? 'bg-green-100 text-green-800' :
+                    exercise.meta.difficulty === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
                   }`}>
-                    {exercise.meta.difficulty === 'Easy' ? '⭐ Fácil' :
-                     exercise.meta.difficulty === 'Medium' ? '⭐⭐ Medio' : '⭐⭐⭐ Difícil'}
+                    {exercise.meta.difficulty === 'Easy' ? 'Fácil' :
+                     exercise.meta.difficulty === 'Medium' ? 'Medio' : 'Difícil'}
                   </span>
-                  <span className="text-white/90 text-sm bg-white/20 px-3 py-1 rounded-full">
-                    ⏱️ {exercise.meta.estimated_time_min || exercise.meta.estimated_time_minutes || 0} min
+                  <span className="text-gray-600 text-sm flex items-center gap-1">
+                    <Clock size={14} />
+                    {exercise.meta.estimated_time_min || exercise.meta.estimated_time_minutes || 0} min
                   </span>
-                  <span className="text-white/90 text-sm bg-white/20 px-3 py-1 rounded-full">
-                    🏆 {exercise.meta.points || 0} XP
+                  <span className="text-gray-600 text-sm flex items-center gap-1">
+                    <Award size={14} />
+                    {exercise.meta.points || 0} pts
                   </span>
                 </div>
               </div>
@@ -155,10 +156,10 @@ export const ExerciseWorkspace: React.FC = () => {
             <button
               onClick={handleSubmit}
               disabled={submitting || !code.trim()}
-              className="flex items-center gap-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all disabled:cursor-not-allowed"
             >
-              <Play size={24} />
-              {submitting ? '⏳ Evaluando...' : '✨ Evaluar Código'}
+              <Play size={20} />
+              {submitting ? 'Evaluando...' : 'Evaluar Código'}
             </button>
           </div>
         </div>
@@ -169,50 +170,47 @@ export const ExerciseWorkspace: React.FC = () => {
           {/* Panel izquierdo: Instrucciones */}
           <div className="space-y-4">
             {/* Historia */}
-            <div className="bg-white rounded-xl shadow-lg border border-indigo-100 overflow-hidden">
+            <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
               <button
                 onClick={() => setShowStory(!showStory)}
-                className="w-full flex items-center justify-between p-5 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all"
+                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-all"
               >
                 <div className="flex items-center gap-3">
-                  <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
-                    <BookOpen className="text-white" size={20} />
-                  </div>
-                  <h2 className="font-bold text-xl text-gray-800">📖 Historia</h2>
+                  <BookOpen className="text-blue-600" size={20} />
+                  <h2 className="font-bold text-lg text-gray-800">Historia</h2>
                 </div>
-                {showStory ? <ChevronUp size={24} className="text-gray-500" /> : <ChevronDown size={24} className="text-gray-500" />}
+                {showStory ? <ChevronUp size={20} className="text-gray-500" /> : <ChevronDown size={20} className="text-gray-500" />}
               </button>
               {showStory && (
-                <div className="p-6 border-t border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-purple-50/50 prose prose-gray max-w-none text-gray-900">
+                <div className="p-4 border-t border-gray-200 bg-gray-50 prose prose-gray max-w-none text-gray-800">
                   <ReactMarkdown>{exercise.content.story_markdown}</ReactMarkdown>
                 </div>
               )}
             </div>
 
             {/* Misión */}
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-xl p-6 text-white">
+            <div className="bg-blue-50 rounded-lg shadow-md border border-blue-200 p-5">
               <div className="flex items-center gap-3 mb-4">
-                <div className="bg-white/20 p-2 rounded-lg">
-                  <Code className="text-white" size={24} />
-                </div>
-                <h2 className="font-bold text-2xl">🎯 Tu Misión</h2>
+                <Code className="text-blue-600" size={24} />
+                <h2 className="font-bold text-xl text-gray-800">Tu Misión</h2>
               </div>
-              <div className="prose prose-invert max-w-none">
+              <div className="prose prose-blue max-w-none text-gray-700">
                 <ReactMarkdown>{exercise.content.mission_markdown}</ReactMarkdown>
               </div>
             </div>
 
             {/* Criterios de éxito */}
             {(exercise.content.success_criteria?.length || exercise.content.constraints?.length) ? (
-              <div className="bg-white rounded-xl shadow-lg border-2 border-green-200 p-5">
-                <h3 className="font-bold text-xl mb-4 text-gray-800 flex items-center gap-2">
-                  <span className="text-2xl">✅</span> Criterios de Éxito
+              <div className="bg-white rounded-lg shadow-md border border-green-200 p-5">
+                <h3 className="font-bold text-lg mb-4 text-gray-800 flex items-center gap-2">
+                  <CheckCircle className="text-green-600" size={20} />
+                  Criterios de Éxito
                 </h3>
-                <ul className="space-y-3">
+                <ul className="space-y-2">
                   {(exercise.content.success_criteria || exercise.content.constraints || []).map((criterion: string, idx: number) => (
-                    <li key={idx} className="flex items-start gap-3 bg-green-50 p-3 rounded-lg">
-                      <span className="text-green-600 text-xl mt-0.5 flex-shrink-0">✓</span>
-                      <span className="text-gray-700">{criterion}</span>
+                    <li key={idx} className="flex items-start gap-2 bg-green-50 p-3 rounded-lg">
+                      <span className="text-green-600 mt-0.5 flex-shrink-0">✓</span>
+                      <span className="text-gray-700 text-sm">{criterion}</span>
                     </li>
                   ))}
                 </ul>
@@ -221,25 +219,23 @@ export const ExerciseWorkspace: React.FC = () => {
 
             {/* Hints */}
             {exercise.content.hints && exercise.content.hints.length > 0 && (
-              <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl shadow-lg border-2 border-yellow-300 overflow-hidden">
+              <div className="bg-white rounded-lg shadow-md border border-yellow-200 overflow-hidden">
                 <button
                   onClick={() => setShowHints(!showHints)}
-                  className="w-full flex items-center justify-between p-5 hover:bg-yellow-100/50 transition-all"
+                  className="w-full flex items-center justify-between p-4 hover:bg-yellow-50 transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-2 rounded-lg">
-                      <Lightbulb className="text-white" size={20} />
-                    </div>
-                    <h2 className="font-bold text-xl text-gray-800">💡 Pistas ({exercise.content.hints.length})</h2>
+                    <Lightbulb className="text-yellow-600" size={20} />
+                    <h2 className="font-bold text-lg text-gray-800">Pistas ({exercise.content.hints.length})</h2>
                   </div>
-                  {showHints ? <ChevronUp size={24} className="text-gray-500" /> : <ChevronDown size={24} className="text-gray-500" />}
+                  {showHints ? <ChevronUp size={20} className="text-gray-500" /> : <ChevronDown size={20} className="text-gray-500" />}
                 </button>
                 {showHints && (
-                  <div className="p-5 border-t border-yellow-300 space-y-3">
+                  <div className="p-4 border-t border-yellow-200 bg-yellow-50 space-y-2">
                     {exercise.content.hints.map((hint: string, idx: number) => (
-                      <div key={idx} className="bg-white rounded-lg p-4 shadow border border-yellow-200">
-                        <span className="font-bold text-yellow-700 text-sm">💡 Pista {idx + 1}:</span>{' '}
-                        <span className="text-gray-700">{hint}</span>
+                      <div key={idx} className="bg-white rounded-lg p-3 border border-yellow-200">
+                        <span className="font-semibold text-yellow-700 text-sm">Pista {idx + 1}:</span>{' '}
+                        <span className="text-gray-700 text-sm">{hint}</span>
                       </div>
                     ))}
                   </div>
@@ -249,7 +245,7 @@ export const ExerciseWorkspace: React.FC = () => {
 
             {/* Objetivos de aprendizaje */}
             {exercise.meta.learning_objectives && exercise.meta.learning_objectives.length > 0 && (
-              <div className="bg-white rounded-xl shadow-lg border border-purple-200 p-5">
+              <div className="bg-white rounded-lg shadow-md border border-gray-200 p-5">
                 <h3 className="font-bold text-xl mb-4 text-gray-800 flex items-center gap-2">
                   <span className="text-2xl">🎓</span> Aprenderás
                 </h3>

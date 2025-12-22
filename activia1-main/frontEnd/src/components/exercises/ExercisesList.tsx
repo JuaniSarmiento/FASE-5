@@ -116,64 +116,63 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onSelectExercise }
 
   return (
     <div className="space-y-6">
-      {/* Header con estadísticas y gradiente */}
+      {/* Header con estadísticas */}
       {stats && (
-        <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-8 text-white">
-          <h2 className="text-4xl font-bold mb-6 flex items-center gap-3">
-            <span className="text-5xl">💻</span> Entrenador Digital
+        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3 text-gray-800">
+            <Book className="text-blue-600" size={28} />
+            Entrenador Digital
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 border border-white/30 hover:bg-white/30 transition-all">
-              <div className="text-sm text-indigo-100 font-semibold mb-1">Total Ejercicios</div>
-              <div className="text-4xl font-bold">{stats.total_exercises}</div>
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div className="text-sm text-gray-600 font-medium mb-1">Total Ejercicios</div>
+              <div className="text-3xl font-bold text-gray-800">{stats.total_exercises}</div>
             </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 border border-white/30 hover:bg-white/30 transition-all">
-              <div className="text-sm text-green-100 font-semibold mb-1">⭐ Fácil</div>
-              <div className="text-4xl font-bold">{stats.by_difficulty.easy || 0}</div>
+            <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+              <div className="text-sm text-green-700 font-medium mb-1">Fácil</div>
+              <div className="text-3xl font-bold text-green-700">{stats.by_difficulty.easy || 0}</div>
             </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 border border-white/30 hover:bg-white/30 transition-all">
-              <div className="text-sm text-yellow-100 font-semibold mb-1">⭐⭐ Medio</div>
-              <div className="text-4xl font-bold">{stats.by_difficulty.medium || 0}</div>
+            <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+              <div className="text-sm text-yellow-700 font-medium mb-1">Medio</div>
+              <div className="text-3xl font-bold text-yellow-700">{stats.by_difficulty.medium || 0}</div>
             </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-5 border border-white/30 hover:bg-white/30 transition-all">
-              <div className="text-sm text-red-100 font-semibold mb-1">⭐⭐⭐ Difícil</div>
-              <div className="text-4xl font-bold">{stats.by_difficulty.hard || 0}</div>
+            <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+              <div className="text-sm text-red-700 font-medium mb-1">Difícil</div>
+              <div className="text-3xl font-bold text-red-700">{stats.by_difficulty.hard || 0}</div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Filtros y búsqueda con mejor diseño */}
-      <div className="bg-white rounded-xl shadow-lg p-6 border border-indigo-100">
+      {/* Filtros y búsqueda */}
+      <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
         <div className="flex flex-wrap gap-4">
           {/* Búsqueda */}
           <div className="flex-1 min-w-[250px]">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-indigo-400" size={22} />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
               <input
                 type="text"
-                placeholder="🔍 Buscar ejercicios por nombre o tema..."
+                placeholder="Buscar ejercicios..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 border-indigo-200 rounded-xl focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition-all text-gray-700 placeholder-gray-400"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-700 placeholder-gray-400"
               />
             </div>
           </div>
 
           {/* Filtro de dificultad */}
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-2 rounded-lg">
-              <Filter size={20} className="text-white" />
-            </div>
+          <div className="flex items-center gap-2">
+            <Filter size={18} className="text-gray-500" />
             <select
               value={selectedDifficulty}
               onChange={(e) => setSelectedDifficulty(e.target.value)}
-              className="border-2 border-indigo-200 rounded-xl px-5 py-3 focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 font-semibold text-gray-700"
+              className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
             >
               <option value="">Todas las dificultades</option>
-              <option value="easy">⭐ Fácil</option>
-              <option value="medium">⭐⭐ Medio</option>
-              <option value="hard">⭐⭐⭐ Difícil</option>
+              <option value="easy">Fácil</option>
+              <option value="medium">Medio</option>
+              <option value="hard">Difícil</option>
             </select>
           </div>
 
@@ -182,25 +181,25 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onSelectExercise }
             <select
               value={selectedUnit}
               onChange={(e) => setSelectedUnit(e.target.value)}
-              className="border-2 border-indigo-200 rounded-xl px-5 py-3 focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 font-semibold text-gray-700"
+              className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
             >
-              <option value="">📚 Todas las unidades</option>
-              <option value="U1">📖 Unidad 1 - Fundamentos</option>
-              <option value="U2">🏗️ Unidad 2 - Estructuras</option>
-              <option value="U3">⚙️ Unidad 3 - Funciones</option>
-              <option value="U4">📁 Unidad 4 - Archivos</option>
-              <option value="U5">🎨 Unidad 5 - POO</option>
+              <option value="">Todas las unidades</option>
+              <option value="U1">Unidad 1 - Fundamentos</option>
+              <option value="U2">Unidad 2 - Estructuras</option>
+              <option value="U3">Unidad 3 - Funciones</option>
+              <option value="U4">Unidad 4 - Archivos</option>
+              <option value="U5">Unidad 5 - POO</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Lista de ejercicios con cards mejoradas */}
+      {/* Lista de ejercicios */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredExercises.length === 0 ? (
-          <div className="col-span-full text-center py-16 bg-white rounded-xl shadow-lg">
-            <div className="text-6xl mb-4">🔍</div>
-            <p className="text-xl text-gray-500 font-semibold">No se encontraron ejercicios</p>
+          <div className="col-span-full text-center py-16 bg-white rounded-lg shadow-md border border-gray-200">
+            <div className="text-6xl mb-4">📚</div>
+            <p className="text-xl text-gray-600 font-semibold">No se encontraron ejercicios</p>
             <p className="text-gray-400 mt-2">Intenta con otros filtros</p>
           </div>
         ) : (
@@ -208,73 +207,72 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onSelectExercise }
             <div
               key={exercise.id}
               onClick={() => handleExerciseClick(exercise.id)}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all cursor-pointer border-2 border-transparent hover:border-indigo-300 overflow-hidden group transform hover:scale-105 duration-300"
+              className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all cursor-pointer border border-gray-200 hover:border-blue-400 overflow-hidden"
             >
-              {/* Header con gradiente */}
-              <div className={`p-5 bg-gradient-to-r ${
-                exercise.difficulty === 'Easy' ? 'from-green-400 to-emerald-500' :
-                exercise.difficulty === 'Medium' ? 'from-yellow-400 to-orange-500' :
-                'from-red-400 to-pink-500'
-              } text-white`}>
-                <div className="flex items-start justify-between mb-2">
+              {/* Header */}
+              <div className={`p-4 ${
+                exercise.difficulty === 'Easy' ? 'bg-green-50 border-b border-green-200' :
+                exercise.difficulty === 'Medium' ? 'bg-yellow-50 border-b border-yellow-200' :
+                'bg-red-50 border-b border-red-200'
+              }`}>
+                <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       {exercise.is_completed ? (
-                        <div className="bg-white/30 p-1 rounded-full">
-                          <CheckCircle className="text-white" size={22} />
-                        </div>
+                        <CheckCircle className="text-green-600" size={20} />
                       ) : (
-                        <div className="bg-white/20 p-1 rounded-full">
-                          <Circle className="text-white/70" size={22} />
-                        </div>
+                        <Circle className="text-gray-400" size={20} />
                       )}
-                      <h3 className="font-bold text-xl">{exercise.title}</h3>
+                      <h3 className="font-bold text-lg text-gray-800">{exercise.title}</h3>
                     </div>
-                    <span className="text-xs text-white/80 font-mono bg-white/20 px-2 py-1 rounded">{exercise.id}</span>
+                    <span className="text-xs text-gray-500 font-mono">{exercise.id}</span>
                   </div>
-                  <span className="px-4 py-2 rounded-xl text-sm font-bold bg-white/30 backdrop-blur-sm border border-white/40">
-                    {exercise.difficulty === 'Easy' ? '⭐ Fácil' :
-                     exercise.difficulty === 'Medium' ? '⭐⭐ Medio' : '⭐⭐⭐ Difícil'}
+                  <span className={`px-3 py-1 rounded-md text-xs font-semibold ${
+                    exercise.difficulty === 'Easy' ? 'bg-green-200 text-green-800' :
+                    exercise.difficulty === 'Medium' ? 'bg-yellow-200 text-yellow-800' :
+                    'bg-red-200 text-red-800'
+                  }`}>
+                    {getDifficultyLabel(exercise.difficulty)}
                   </span>
                 </div>
               </div>
 
               {/* Body */}
-              <div className="p-5 space-y-4">
-                {/* Métricas con iconos mejorados */}
-                <div className="flex items-center gap-4 text-sm font-semibold text-gray-600">
-                  <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg">
-                    <Clock size={18} className="text-blue-600" />
+              <div className="p-4 space-y-3">
+                {/* Métricas */}
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <Clock size={16} className="text-gray-500" />
                     <span>{exercise.estimated_time_minutes} min</span>
                   </div>
-                  <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-lg">
-                    <Award size={18} className="text-purple-600" />
-                    <span>{exercise.points} XP</span>
+                  <div className="flex items-center gap-1">
+                    <Award size={16} className="text-gray-500" />
+                    <span>{exercise.points} pts</span>
                   </div>
                 </div>
 
-                {/* Tags con mejor diseño */}
+                {/* Tags */}
                 <div className="flex flex-wrap gap-2">
                   {exercise.tags.slice(0, 3).map((tag) => (
                     <span
                       key={tag}
-                      className="px-3 py-1.5 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200"
+                      className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded border border-blue-200"
                     >
-                      #{tag}
+                      {tag}
                     </span>
                   ))}
                   {exercise.tags.length > 3 && (
-                    <span className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg border border-gray-200">
-                      +{exercise.tags.length - 3} más
+                    <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded border border-gray-200">
+                      +{exercise.tags.length - 3}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Footer con botón llamativo */}
-              <div className="px-5 py-4 bg-gradient-to-r from-gray-50 to-indigo-50/30 border-t-2 border-indigo-100">
-                <button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-3 rounded-xl transition-all shadow-md hover:shadow-lg transform group-hover:scale-105">
-                  🚀 {exercise.is_completed ? 'Reintentar' : 'Comenzar'}
+              {/* Footer */}
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
+                  {exercise.is_completed ? 'Reintentar' : 'Comenzar'}
                 </button>
               </div>
             </div>
