@@ -257,35 +257,103 @@ def obtener_tema(codigo_materia: str, tema_id: str) -> Optional[Dict[str, Any]]:
 async def obtener_materias_disponibles():
     """
     Obtiene la lista de materias disponibles con sus temas
+    Devuelve Python (unidades 1-5) y Java (unidades 6-7)
     """
     try:
         materias = []
-        
-        # Por ahora solo Programación 1
-        # En el futuro agregar más materias
-        try:
-            datos_prog1 = cargar_materia_datos("PROG1")
-            
-            temas_info = []
-            for tema in datos_prog1['temas']:
-                temas_info.append(TemaInfo(
-                    id=tema['id'],
-                    nombre=tema['nombre'],
-                    descripcion=tema['descripcion'],
-                    dificultad=tema['dificultad'],
-                    tiempo_estimado_min=tema['tiempo_estimado_min']
+
+        # Cargar catalog.json para obtener las unidades de Python y Java
+        catalog_path = Path(__file__).parent.parent.parent / "data" / "exercises" / "catalog.json"
+
+        if catalog_path.exists():
+            with open(catalog_path, 'r', encoding='utf-8') as f:
+                catalog = json.load(f)
+
+            # PYTHON - Unidades 1-5
+            python_units = [u for u in catalog['catalog']['units'] if u['unit'] <= 5]
+            python_temas = []
+
+            for unit in python_units:
+                for exercise in unit['exercises']:
+                    python_temas.append(TemaInfo(
+                        id=exercise['id'],
+                        nombre=exercise['title'],
+                        descripcion=exercise['description'],
+                        dificultad=exercise['difficulty'],
+                        tiempo_estimado_min=exercise['time_min']
+                    ))
+
+            if python_temas:
+                materias.append(MateriaInfo(
+                    materia="Python",
+                    codigo="PYTHON",
+                    temas=python_temas
                 ))
-            
-            materias.append(MateriaInfo(
-                materia=datos_prog1['materia'],
-                codigo=datos_prog1['codigo'],
-                temas=temas_info
-            ))
-        except Exception as e:
-            logger.warning(f"No se pudo cargar Programación 1: {e}")
-        
+
+            # JAVA - Leer desde archivos unit6 y unit7
+            exercises_path = Path(__file__).parent.parent.parent / "data" / "exercises"
+            java_temas = []
+
+            # Unit 6: Java Fundamentals
+            unit6_path = exercises_path / "unit6_java_fundamentals.json"
+            if unit6_path.exists():
+                with open(unit6_path, 'r', encoding='utf-8') as f:
+                    unit6_exercises = json.load(f)
+                for exercise in unit6_exercises:
+                    java_temas.append(TemaInfo(
+                        id=exercise['id'],
+                        nombre=exercise['meta']['title'],
+                        descripcion=exercise['content']['story_markdown'][:100] + "...",
+                        dificultad=exercise['meta']['difficulty'],
+                        tiempo_estimado_min=exercise['meta']['estimated_time_min']
+                    ))
+
+            # Unit 7: Spring Boot
+            unit7_path = exercises_path / "unit7_springboot.json"
+            if unit7_path.exists():
+                with open(unit7_path, 'r', encoding='utf-8') as f:
+                    unit7_exercises = json.load(f)
+                for exercise in unit7_exercises:
+                    java_temas.append(TemaInfo(
+                        id=exercise['id'],
+                        nombre=exercise['meta']['title'],
+                        descripcion=exercise['content']['story_markdown'][:100] + "...",
+                        dificultad=exercise['meta']['difficulty'],
+                        tiempo_estimado_min=exercise['meta']['estimated_time_min']
+                    ))
+
+            if java_temas:
+                materias.append(MateriaInfo(
+                    materia="Java",
+                    codigo="JAVA",
+                    temas=java_temas
+                ))
+
+        # Fallback: intentar cargar desde programacion1_temas.json si catalog no existe
+        if not materias:
+            try:
+                datos_prog1 = cargar_materia_datos("PROG1")
+
+                temas_info = []
+                for tema in datos_prog1['temas']:
+                    temas_info.append(TemaInfo(
+                        id=tema['id'],
+                        nombre=tema['nombre'],
+                        descripcion=tema['descripcion'],
+                        dificultad=tema['dificultad'],
+                        tiempo_estimado_min=tema['tiempo_estimado_min']
+                    ))
+
+                materias.append(MateriaInfo(
+                    materia=datos_prog1['materia'],
+                    codigo=datos_prog1['codigo'],
+                    temas=temas_info
+                ))
+            except Exception as e:
+                logger.warning(f"No se pudo cargar Programación 1: {e}")
+
         return materias
-        
+
     except Exception as e:
         logger.error(f"Error obteniendo materias: {e}", exc_info=True)
         raise HTTPException(
