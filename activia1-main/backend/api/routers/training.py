@@ -369,39 +369,84 @@ async def iniciar_entrenamiento(
 ):
     """
     Inicia una nueva sesión de entrenamiento con múltiples ejercicios
+    Soporta tanto ejercicios del catálogo JSON como temas antiguos
     """
     try:
-        # Obtener el tema seleccionado
-        tema = obtener_tema(request.materia_codigo, request.tema_id)
+        # NUEVO: Importar ExerciseLoader para cargar ejercicios del catálogo
+        from backend.data.exercises.loader import ExerciseLoader
         
-        if not tema:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Tema {request.tema_id} no encontrado"
-            )
+        loader = ExerciseLoader()
         
-        # Verificar si el tema tiene ejercicios múltiples o uno solo
-        if 'ejercicios' in tema:
-            ejercicios = tema['ejercicios']
-            total_ejercicios = len(ejercicios)
-            ejercicio_inicial = ejercicios[0]
-        elif 'ejercicio' in tema:
-            # Formato antiguo con un solo ejercicio
-            ejercicio_inicial = tema['ejercicio']
-            ejercicios = [ejercicio_inicial]
+        # Intentar cargar ejercicio del catálogo JSON primero
+        exercise = loader.get_by_id(request.tema_id)
+        
+        if exercise:
+            # Es un ejercicio del catálogo JSON
+            logger.info(f"✅ Ejercicio encontrado en catálogo: {request.tema_id}")
+            
+            # Adaptar formato del ejercicio JSON al formato de training
+            ejercicio_adaptado = {
+                'consigna': exercise['content']['mission_markdown'],
+                'codigo_inicial': exercise['starter_code'],
+                'tests': exercise.get('hidden_tests', []),
+                'pistas': []  # Por ahora sin pistas
+            }
+            
+            # Crear datos de sesión con un solo ejercicio
+            tema_info = {
+                'id': exercise['id'],
+                'nombre': exercise['meta']['title'],
+                'descripcion': exercise['content']['story_markdown'],
+                'dificultad': exercise['meta']['difficulty'],
+                'tiempo_estimado_min': exercise['meta']['estimated_time_min']
+            }
+            
+            ejercicios = [ejercicio_adaptado]
             total_ejercicios = 1
+            tiempo_limite = exercise['meta']['estimated_time_min']
+            
         else:
-            raise HTTPException(
-                status_code=500,
-                detail="Tema sin ejercicios configurados"
-            )
+            # Intentar cargar del sistema antiguo de temas
+            logger.info(f"Ejercicio no encontrado en catálogo, intentando sistema antiguo: {request.tema_id}")
+            tema = obtener_tema(request.materia_codigo, request.tema_id)
+            
+            if not tema:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Ejercicio '{request.tema_id}' no encontrado en ningún sistema"
+                )
+            if not tema:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Ejercicio '{request.tema_id}' no encontrado en ningún sistema"
+                )
+            
+            # Verificar si el tema tiene ejercicios múltiples o uno solo
+            if 'ejercicios' in tema:
+                ejercicios = tema['ejercicios']
+                total_ejercicios = len(ejercicios)
+                tema_info = tema
+                tiempo_limite = tema['tiempo_estimado_min']
+            elif 'ejercicio' in tema:
+                # Formato antiguo con un solo ejercicio
+                ejercicios = [tema['ejercicio']]
+                total_ejercicios = 1
+                tema_info = tema
+                tiempo_limite = tema['tiempo_estimado_min']
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Tema sin ejercicios configurados"
+                )
+        
+        ejercicio_inicial = ejercicios[0]
+        ejercicio_inicial = ejercicios[0]
         
         # Crear ID único para la sesión
         session_id = str(uuid.uuid4())
         
         # Calcular tiempos
         inicio = datetime.now()
-        tiempo_limite = tema['tiempo_estimado_min']
         fin_estimado = inicio + timedelta(minutes=tiempo_limite)
         
         # Crear datos de sesión
@@ -421,13 +466,13 @@ async def iniciar_entrenamiento(
         
         # Guardar sesión en Redis o memoria
         guardar_sesion(session_id, datos_sesion)
-        logger.info(f"✅ Nueva sesión creada: {session_id}")
+        logger.info(f"✅ Nueva sesión creada: {session_id} para ejercicio {request.tema_id}")
         
         # Construir respuesta con el primer ejercicio
         return SesionEntrenamiento(
             session_id=session_id,
-            materia=tema['nombre'],
-            tema=tema['nombre'],
+            materia=tema_info.get('nombre', request.materia_codigo),
+            tema=tema_info.get('nombre', request.tema_id),
             ejercicio_actual=EjercicioActual(
                 numero=1,
                 consigna=ejercicio_inicial['consigna'],

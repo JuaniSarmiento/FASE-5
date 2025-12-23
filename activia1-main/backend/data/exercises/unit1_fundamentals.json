@@ -54,31 +54,31 @@
     "starter_code": "# NO TOCAR ESTA LÍNEA\ndef obtener_letra(nota):\n    \"\"\"\n    Convierte una nota numérica a letra.\n    Args:\n        nota (int/float): Calificación entre 0-100\n    Returns:\n        str: Letra (A, B, C, D, F) o \"INVALID\"\n    \"\"\"\n    # TODO: Valida que nota esté entre 0-100\n    \n    # TODO: Implementa la lógica de conversión\n    \n    pass\n\n# Casos de prueba\nprint(obtener_letra(95))   # Debe imprimir: A\nprint(obtener_letra(82))   # Debe imprimir: B\nprint(obtener_letra(105))  # Debe imprimir: INVALID",
     "hidden_tests": [
       {
-        "input": "95",
+        "input": "obtener_letra(95)",
         "expected": "A"
       },
       {
-        "input": "82",
+        "input": "obtener_letra(82)",
         "expected": "B"
       },
       {
-        "input": "75",
+        "input": "obtener_letra(75)",
         "expected": "C"
       },
       {
-        "input": "65",
+        "input": "obtener_letra(65)",
         "expected": "D"
       },
       {
-        "input": "45",
+        "input": "obtener_letra(45)",
         "expected": "F"
       },
       {
-        "input": "105",
+        "input": "obtener_letra(105)",
         "expected": "INVALID"
       },
       {
-        "input": "-10",
+        "input": "obtener_letra(-10)",
         "expected": "INVALID"
       }
     ]
