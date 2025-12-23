@@ -42,13 +42,14 @@ const TrainingPage: React.FC = () => {
       console.log('🔄 Cargando materias desde:', '/api/v1/training/materias');
       const data = await trainingService.getMaterias();
       console.log('✅ Materias cargadas:', data);
+      console.log('🔧 Limpiando selección de materia (debe estar en null)');
       setMaterias(data);
-      
-      // Auto-seleccionar la primera materia (por ahora solo hay Programación 1)
-      if (data.length > 0) {
-        setMateriaSeleccionada(data[0]);
-        console.log('📚 Materia seleccionada:', data[0].materia);
-      } else {
+      setMateriaSeleccionada(null); // Limpiar selección para forzar elección del usuario
+      setTemaSeleccionado(null); // También limpiar tema
+      console.log('✅ Materia seleccionada después de limpiar:', null);
+
+      // NO auto-seleccionar materia - el usuario debe elegir del combo
+      if (data.length === 0) {
         console.warn('⚠️ No hay materias disponibles');
         setError('No hay materias disponibles en este momento');
       }
@@ -77,8 +78,8 @@ const TrainingPage: React.FC = () => {
     }
   };
 
-  const handleIniciarEntrenamiento = async () => {
-    if (!materiaSeleccionada || !temaSeleccionado) {
+  const handleIniciarEntrenamiento = async (tema: TemaInfo) => {
+    if (!materiaSeleccionada) {
       return;
     }
 
@@ -87,7 +88,7 @@ const TrainingPage: React.FC = () => {
       navigate('/training/exam', {
         state: {
           materia_codigo: materiaSeleccionada.codigo,
-          tema_id: temaSeleccionado.id
+          tema_id: tema.id
         }
       });
     } catch (err) {
@@ -157,15 +158,47 @@ const TrainingPage: React.FC = () => {
           </div>
         )}
 
-        {/* Materia seleccionada */}
-        {materiaSeleccionada && (
+        {/* Selector de Materia (Combo Dropdown) */}
+        {materias.length > 0 && (
           <div className="mb-8">
-            <div className="glass rounded-2xl p-6 border-l-4 border-purple-500">
-              <div className="flex items-center gap-3 mb-2">
-                <BookOpen className="w-6 h-6 text-purple-400" />
-                <h2 className="text-2xl font-bold text-white">{materiaSeleccionada.materia}</h2>
-              </div>
-              <p className="text-gray-400">Código: <span className="text-purple-400 font-mono">{materiaSeleccionada.codigo}</span></p>
+            <div className="glass rounded-2xl p-6">
+              <label className="block text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-purple-400" />
+                Selecciona una Materia
+              </label>
+              <select
+                value={materiaSeleccionada?.codigo || ''}
+                onChange={(e) => {
+                  const selected = materias.find(m => m.codigo === e.target.value);
+                  setMateriaSeleccionada(selected || null);
+                  setTemaSeleccionado(null); // Resetear tema cuando cambia materia
+                  console.log('📚 Materia seleccionada:', selected?.materia);
+                }}
+                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer hover:bg-gray-800/70"
+              >
+                <option value="" className="bg-gray-800">Elige una materia...</option>
+                {materias.map((materia) => (
+                  <option key={materia.codigo} value={materia.codigo} className="bg-gray-800">
+                    {materia.materia} ({materia.temas.length} ejercicios)
+                  </option>
+                ))}
+              </select>
+
+              {/* Info de materia seleccionada */}
+              {materiaSeleccionada && (
+                <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-white">{materiaSeleccionada.materia}</h3>
+                      <p className="text-sm text-gray-400">Código: <span className="text-purple-400 font-mono">{materiaSeleccionada.codigo}</span></p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-purple-400">{materiaSeleccionada.temas.length}</p>
+                      <p className="text-xs text-gray-400">Ejercicios</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -183,7 +216,7 @@ const TrainingPage: React.FC = () => {
                 <div
                   key={tema.id}
                   onClick={() => setTemaSeleccionado(tema)}
-                  className={`glass rounded-xl p-6 cursor-pointer transition-all hover:scale-[1.02] ${
+                  className={`glass rounded-xl p-6 cursor-pointer transition-all hover:scale-[1.02] flex flex-col ${
                     temaSeleccionado?.id === tema.id
                       ? 'ring-2 ring-purple-500 bg-purple-500/10'
                       : 'hover:bg-gray-800/50'
@@ -191,10 +224,10 @@ const TrainingPage: React.FC = () => {
                 >
                   {/* Título del tema */}
                   <h4 className="text-lg font-bold text-white mb-2">{tema.nombre}</h4>
-                  
+
                   {/* Descripción */}
-                  <p className="text-gray-400 text-sm mb-4">{tema.descripcion}</p>
-                  
+                  <p className="text-gray-400 text-sm mb-4 flex-grow">{tema.descripcion}</p>
+
                   {/* Metadata */}
                   <div className="flex flex-wrap gap-2 mb-4">
                     <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getDifficultyColor(tema.dificultad)}`}>
@@ -205,39 +238,22 @@ const TrainingPage: React.FC = () => {
                       {tema.tiempo_estimado_min} min
                     </span>
                   </div>
-                  
-                  {/* Indicador de selección */}
+
+                  {/* Botón de Iniciar - SOLO si está seleccionado */}
                   {temaSeleccionado?.id === tema.id && (
-                    <div className="flex items-center gap-2 text-purple-400 text-sm font-medium">
-                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
-                      Tema seleccionado
-                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation(); // Evitar que se dispare el onClick de la card
+                        handleIniciarEntrenamiento(tema);
+                      }}
+                      className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-bold text-white flex items-center justify-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-purple-500/30 mt-2"
+                    >
+                      <PlayCircle className="w-5 h-5" />
+                      Iniciar Entrenamiento
+                    </button>
                   )}
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* Botón de inicio */}
-        {temaSeleccionado && (
-          <div className="mt-8 glass rounded-2xl p-6">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <div>
-                <h3 className="text-xl font-bold text-white mb-2">¿Listo para comenzar?</h3>
-                <p className="text-gray-400">
-                  Tema: <span className="text-purple-400 font-medium">{temaSeleccionado.nombre}</span> • 
-                  Tiempo: <span className="text-purple-400 font-medium">{temaSeleccionado.tiempo_estimado_min} minutos</span>
-                </p>
-              </div>
-              
-              <button
-                onClick={handleIniciarEntrenamiento}
-                className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-white flex items-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-purple-500/50"
-              >
-                <PlayCircle className="w-5 h-5" />
-                Iniciar Entrenamiento
-              </button>
             </div>
           </div>
         )}

@@ -12,7 +12,11 @@
       "Bash(npm run lint)",
       "Bash(python -m backend:*)",
       "Bash(curl:*)",
-      "Bash(python -m backend.scripts.init_db:*)"
+      "Bash(python -m backend.scripts.init_db:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(docker-compose up:*)"
     ]
   }
 }
