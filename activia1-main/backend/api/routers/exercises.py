@@ -471,54 +471,64 @@ async def submit_json_exercise(
     total_execution_time = 0
     
     if not is_java:  # Solo ejecutar si es Python
-        for test in exercise['hidden_tests']:
+        for i, test in enumerate(exercise['hidden_tests'], 1):
             # Adaptarse a la estructura real de los JSON (input/expected)
             test_input = test.get('input', test.get('input_data', ''))
             if isinstance(test_input, dict) or isinstance(test_input, list):
                 test_input = json.dumps(test_input)
             
-            stdout, stderr, exec_time = execute_python_code(
-                submission.student_code,
-                str(test_input),
-                timeout_seconds=30
-            )
+            # Soportar tanto 'expected_output' (legacy) como 'expected' (nuevo)
+            expected = test.get('expected_output') or test.get('expected', '')
             
-            total_execution_time += exec_time
-            stdout_output += stdout + "\n"
-            stderr_output += stderr + "\n"
+            logger.info(f"Ejecutando test {i}/{tests_total}: input='{test_input}', expected='{expected}'")
             
-            # Verificar si pasó el test
-            if not stderr:
-                # Soportar tanto 'expected_output' (legacy) como 'expected' (nuevo)
-                expected = test.get('expected_output') or test.get('expected', '')
-                
-                if expected:
-                    # Si expected es una expresión Python (ej: "total == 42600"), evaluarla
-                    if '==' in expected or 'and' in expected or 'or' in expected:
-                        try:
-                            # Crear contexto con las variables ejecutando el código
-                            exec_globals = {}
-                            exec(submission.student_code, exec_globals)
-                            
-                            # Evaluar la expresión expected en ese contexto
-                            test_passed = eval(expected, exec_globals)
-                            
-                            if test_passed:
-                                tests_passed += 1
-                                logger.info(f"Test pasado: {expected}")
-                            else:
-                                logger.warning(f"Test falló: {expected} (evaluó a False)")
-                        except Exception as e:
-                            logger.warning(f"Error evaluando expected expression '{expected}': {e}")
+            # Si expected es una expresión Python (ej: "total == 42600"), evaluarla
+            if expected and ('==' in expected or 'and' in expected or 'or' in expected or '>' in expected or '<' in expected):
+                # Es una expresión Python, ejecutar código y evaluar
+                try:
+                    # Crear contexto ejecutando el código del estudiante
+                    exec_globals = {}
+                    exec(submission.student_code, exec_globals)
+                    
+                    # Evaluar la expresión expected en ese contexto
+                    test_passed = eval(expected, exec_globals)
+                    
+                    if test_passed:
+                        tests_passed += 1
+                        logger.info(f"✓ Test {i} PASADO: {expected}")
                     else:
-                        # Es un output directo, comparar strings
+                        logger.warning(f"✗ Test {i} FALLÓ: {expected} (evaluó a False)")
+                except Exception as e:
+                    logger.warning(f"✗ Test {i} ERROR: {e}")
+            else:
+                # Es un test de output, ejecutar código con input
+                stdout, stderr, exec_time = execute_python_code(
+                    submission.student_code,
+                    str(test_input),
+                    timeout_seconds=30
+                )
+                
+                total_execution_time += exec_time
+                stdout_output += stdout + "\n"
+                stderr_output += stderr + "\n"
+                
+                # Verificar si pasó el test
+                if not stderr:
+                    if expected:
+                        # Comparar output
                         expected_str = str(expected).strip()
                         actual = stdout.strip()
                         if expected_str == actual:
                             tests_passed += 1
-                            logger.info(f"Test pasado: output coincide")
+                            logger.info(f"✓ Test {i} PASADO: output coincide")
                         else:
-                            logger.warning(f"Test falló: expected '{expected_str}' != actual '{actual}'")
+                            logger.warning(f"✗ Test {i} FALLÓ: expected '{expected_str}' != actual '{actual}'")
+                    else:
+                        # No hay expected, solo verificar que no haya errores
+                        tests_passed += 1
+                        logger.info(f"✓ Test {i} PASADO: sin errores")
+                else:
+                    logger.warning(f"✗ Test {i} FALLÓ: {stderr}")
         
         # Crear sandbox_result solo si es Python (si es Java ya se creó arriba)
         sandbox_result = {

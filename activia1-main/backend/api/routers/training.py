@@ -394,7 +394,8 @@ async def submit_ejercicio(
     """
     try:
         # Verificar sesión con logging detallado
-        logger.info(f"Submit ejercicio - Session ID: {request.session_id}")
+        logger.info(f"🔥🔥🔥 Submit ejercicio - Session ID: {request.session_id}")
+        print(f"🔥🔥🔥 SUBMIT EJERCICIO LLAMADO - Session: {request.session_id}")
         sesiones_activas = listar_sesiones_activas()
         logger.info(f"Sesiones activas: {sesiones_activas}")
         
@@ -423,6 +424,119 @@ async def submit_ejercicio(
         
         ejercicio = sesion['ejercicios'][index_actual]
         
+        logger.info(f"📝 Ejercicio obtenido: {ejercicio.keys()}")
+        logger.info(f"📝 Tests en ejercicio: {ejercicio.get('tests', 'NO TIENE TESTS')}")
+        print(f"📝 EJERCICIO KEYS: {list(ejercicio.keys())}")
+        print(f"📝 TESTS: {ejercicio.get('tests', [])}")
+        
+        # ========================================================================
+        # EJECUTAR TESTS REALES (NO SIMULADOS)
+        # ========================================================================
+        
+        logger.info(f"🧪🧪🧪 Ejecutando tests para ejercicio {index_actual + 1}")
+        print(f"🧪🧪🧪 EJECUTANDO TESTS - Ejercicio {index_actual + 1}")
+        
+        # Importar execute_python_code del router de exercises
+        from .exercises import execute_python_code
+        
+        # Obtener tests (pueden llamarse 'tests' o 'tests_ocultos')
+        tests = ejercicio.get('tests', ejercicio.get('tests_ocultos', []))
+        tests_passed = 0
+        tests_total = len(tests)
+        stdout_output = ""
+        stderr_output = ""
+        total_execution_time = 0
+        
+        # Ejecutar cada test
+        for i, test in enumerate(tests, 1):
+            test_input = test.get('input', '')
+            expected = test.get('expected', '')
+            
+            logger.info(f"Ejecutando test {i}/{tests_total}: input='{test_input}', expected='{expected}'")
+            
+            # Ejecutar código del estudiante
+            stdout, stderr, exec_time = execute_python_code(
+                request.codigo_usuario,
+                str(test_input),
+                timeout_seconds=30
+            )
+            
+            total_execution_time += exec_time
+            stdout_output += stdout + "\n"
+            stderr_output += stderr + "\n"
+            
+            # Verificar si pasó el test
+            if not stderr:
+                # Evaluar el test
+                try:
+                    # Si test_input es una llamada a función, evaluar
+                    if '(' in test_input:
+                        exec_globals = {}
+                        exec(request.codigo_usuario, exec_globals)
+                        actual_result = eval(test_input, exec_globals)
+                        
+                        # Comparar resultados - manejar diferentes formatos de expected
+                        test_passed = False
+                        
+                        # Si expected es string, intentar varias estrategias de comparación
+                        if isinstance(expected, str):
+                            # 1. Comparar como strings (normalizar ambos)
+                            actual_str = str(actual_result).strip()
+                            expected_str = expected.strip()
+                            
+                            # 2. Si expected tiene "..." significa "aproximadamente"
+                            if '...' in expected_str:
+                                # Comparar prefijo (ej: "85.666..." == "85.66666...")
+                                expected_prefix = expected_str.replace('...', '').strip()
+                                if actual_str.startswith(expected_prefix):
+                                    test_passed = True
+                            # 3. Intentar evaluar expected como expresión Python y comparar
+                            elif expected_str:
+                                try:
+                                    # Primero intentar eval directo
+                                    expected_value = eval(expected_str)
+                                    test_passed = actual_result == expected_value
+                                except:
+                                    # Si falla eval, normalizar strings y comparar
+                                    # Quitar paréntesis, espacios extra, etc.
+                                    actual_normalized = actual_str.replace("(", "").replace(")", "").replace("'", "").replace('"', "").strip()
+                                    expected_normalized = expected_str.replace("(", "").replace(")", "").replace("'", "").replace('"', "").strip()
+                                    test_passed = actual_normalized == expected_normalized
+                        else:
+                            # expected ya es un valor Python, comparar directo
+                            test_passed = actual_result == expected
+                        
+                        if test_passed:
+                            tests_passed += 1
+                            logger.info(f"✓ Test {i} PASADO")
+                        else:
+                            logger.warning(f"✗ Test {i} FALLÓ: expected={expected}, actual={actual_result}")
+                    else:
+                        # Comparar output directo
+                        if stdout.strip() == str(expected).strip():
+                            tests_passed += 1
+                            logger.info(f"✓ Test {i} PASADO")
+                        else:
+                            logger.warning(f"✗ Test {i} FALLÓ: output no coincide")
+                except Exception as e:
+                    logger.warning(f"✗ Test {i} ERROR: {e}")
+            else:
+                logger.warning(f"✗ Test {i} FALLÓ: {stderr}")
+        
+        # Crear sandbox_result con resultados reales
+        sandbox_result = {
+            'exit_code': 0 if not stderr_output.strip() else 1,
+            'stdout': stdout_output.strip(),
+            'stderr': stderr_output.strip(),
+            'tests_passed': tests_passed,
+            'tests_total': tests_total,
+            'execution_time_ms': total_execution_time,
+            'language': 'python',
+            'evaluation_type': 'execution'
+        }
+        
+        logger.info(f"📊 Tests ejecutados: {tests_passed}/{tests_total} pasados")
+        
         # ========================================================================
         # EVALUACIÓN CON CODE_EVALUATOR (Sistema Profesional)
         # ========================================================================
@@ -441,16 +555,7 @@ async def submit_ejercicio(
             }
         }
         
-        # Ejecutar código en sandbox simulado (sin exec real por seguridad)
-        sandbox_result = {
-            'exit_code': 0,  # Asumimos que compila
-            'stdout': 'Código recibido para evaluación',
-            'stderr': '',
-            'tests_passed': 0,
-            'tests_total': len(ejercicio.get('tests', []))
-        }
-        
-        # Evaluar con CodeEvaluator
+        # Evaluar con CodeEvaluator (sandbox_result ya fue creado arriba con tests reales)
         try:
             evaluator = CodeEvaluator(llm_client=llm)
             evaluation_result = await evaluator.evaluate(
@@ -467,11 +572,8 @@ async def submit_ejercicio(
             score = eval_data.get('score', 0)
             status = eval_data.get('status', 'FAIL')
             
-            # Calcular tests pasados basándose en el score
-            tests_totales = len(ejercicio.get('tests', []))
-            tests_pasados = int((score / 100) * tests_totales) if tests_totales > 0 else 0
-            
-            correcto = status == 'PASS' and score >= 70
+            # Usar los tests reales que ya ejecutamos
+            correcto = status == 'PASS' and score >= 70 and tests_passed == tests_total
             mensaje = eval_data.get('toast_message', 'Evaluado por IA')
             
             # Guardar evaluación completa para feedback detallado
@@ -479,19 +581,17 @@ async def submit_ejercicio(
             
         except Exception as e:
             logger.error(f"Error en evaluación con CodeEvaluator: {e}", exc_info=True)
-            # Fallback seguro
-            correcto = False
-            tests_pasados = 0
-            tests_totales = len(ejercicio.get('tests', []))
-            mensaje = "Error en evaluación IA"
-            feedback_completo = "Hubo un error al evaluar tu código. Intenta nuevamente."
+            # Fallback seguro - usar resultados de tests reales
+            correcto = tests_passed == tests_total and tests_total > 0
+            mensaje = f"Tests: {tests_passed}/{tests_total}"
+            feedback_completo = f"Tests ejecutados: {tests_passed}/{tests_total} pasados."
         
         # Guardar resultado
         resultado = {
             'numero': index_actual + 1,
             'correcto': correcto,
-            'tests_pasados': tests_pasados,
-            'tests_totales': tests_totales,
+            'tests_pasados': tests_passed,
+            'tests_totales': tests_total,
             'mensaje': mensaje
         }
         sesion['resultados'].append(resultado)
@@ -522,8 +622,22 @@ async def submit_ejercicio(
             sesion['finalizado'] = True
             logger.info(f"Sesión {request.session_id} finalizada exitosamente")
             
+            # Calcular nota basándose en porcentaje de tests pasados (más justo)
+            total_tests_todos = sum(r['tests_totales'] for r in sesion['resultados'])
+            total_tests_pasados = sum(r['tests_pasados'] for r in sesion['resultados'])
+            
+            # Calcular porcentaje y nota
+            if total_tests_todos > 0:
+                porcentaje = (total_tests_pasados / total_tests_todos) * 100
+                nota = (total_tests_pasados / total_tests_todos) * 10
+            else:
+                porcentaje = 0
+                nota = 0
+            
+            # Contar ejercicios perfectos (100% tests pasados)
             correctos = sum(1 for r in sesion['resultados'] if r['correcto'])
-            nota = (correctos / sesion['total_ejercicios']) * 10
+            
+            logger.info(f"📊 Nota final calculada: {nota:.2f}/10 ({total_tests_pasados}/{total_tests_todos} tests)")
             
             # No borrar la sesión aquí, dejarla para revisión
             # del sesiones_activas[request.session_id]  # REMOVED
@@ -536,7 +650,7 @@ async def submit_ejercicio(
                     'nota_final': round(nota, 2),
                     'ejercicios_correctos': correctos,
                     'total_ejercicios': sesion['total_ejercicios'],
-                    'porcentaje': round((correctos / sesion['total_ejercicios']) * 100, 1),
+                    'porcentaje': round(porcentaje, 1),
                     'aprobado': nota >= 6,
                     'tiempo_usado_min': int((datetime.now() - sesion['inicio']).total_seconds() / 60),
                     'resultados_detalle': sesion['resultados']

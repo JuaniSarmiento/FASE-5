@@ -136,6 +136,11 @@ class CodeEvaluator:
         try:
             # Importar LLMMessage y LLMRole
             from ..llm.base import LLMMessage, LLMRole
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            logger.info(f"🤖 Llamando al LLM para evaluar código (model: {getattr(self.llm_client, 'model', 'unknown')})")
+            logger.debug(f"Prompt length: {len(prompt)} chars")
             
             # Llamar al LLM usando el método generate()
             response = await self.llm_client.generate(
@@ -145,6 +150,8 @@ class CodeEvaluator:
                 temperature=0.3,  # Temperatura baja para evaluación consistente
                 max_tokens=2000
             )
+            
+            logger.info(f"✅ LLM respondió exitosamente (model: {response.model})")
             
             # 3. Parsear JSON de respuesta
             evaluation_result = self._parse_llm_response(response.content)
@@ -179,8 +186,9 @@ class CodeEvaluator:
             import traceback
             import logging
             logger = logging.getLogger(__name__)
-            logger.warning(f"Error en evaluación con IA, usando evaluación automática: {e}")
+            logger.error(f"❌ Error en evaluación con IA, usando evaluación automática: {e}")
             logger.debug(traceback.format_exc())
+            logger.info(f"📊 Sandbox result: tests_passed={sandbox_result.get('tests_passed')}, tests_total={sandbox_result.get('tests_total')}")
             # Usar evaluación mock en lugar de fallback de error
             return self._mock_evaluation(sandbox_result)
     
@@ -210,10 +218,15 @@ class CodeEvaluator:
         """
         exit_code = sandbox_result.get('exit_code', 0)
         tests_passed = sandbox_result.get('tests_passed', 0)
-        tests_total = sandbox_result.get('tests_total', 1)
+        tests_total = sandbox_result.get('tests_total', 0)  # Cambiado de 1 a 0
         
-        success = exit_code == 0 and tests_passed == tests_total
-        score = (tests_passed / tests_total * 100) if tests_total > 0 else 0
+        # Si no hay tests, usar exit_code como indicador
+        if tests_total == 0:
+            success = exit_code == 0
+            score = 100 if success else 0
+        else:
+            success = exit_code == 0 and tests_passed == tests_total
+            score = (tests_passed / tests_total * 100) if tests_total > 0 else 0
         
         return {
             "evaluation": {
