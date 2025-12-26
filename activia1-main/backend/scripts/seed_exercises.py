@@ -24,8 +24,7 @@ import uuid
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
-activia_root = project_root / "activia1-main"
-sys.path.insert(0, str(activia_root))
+sys.path.insert(0, str(project_root))
 
 from backend.database.config import get_db_config
 from backend.database.models import (
