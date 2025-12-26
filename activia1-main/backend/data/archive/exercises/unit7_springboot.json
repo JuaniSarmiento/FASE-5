@@ -1,0 +1,174 @@
+[
+  {
+    "id": "U7-SPRING-01",
+    "meta": {
+      "title": "Spring Boot: REST Controller Básico",
+      "difficulty": "Medium",
+      "estimated_time_min": 30,
+      "language": "java",
+      "framework": "spring-boot",
+      "tags": ["Spring Boot", "REST API", "Controller", "Java"]
+    },
+    "ui_config": {
+      "editor_language": "java",
+      "read_only_lines": [1, 2, 3],
+      "placeholder_text": "// Implementa el controller..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres **Spring Boot Developer** en una startup. Necesitas crear un REST API para gestionar productos.\n\n**Requisitos:**\n- Endpoint GET `/api/products` que retorne lista de productos\n- Endpoint GET `/api/products/{id}` que retorne un producto\n- Endpoint POST `/api/products` para crear productos\n- Usar ResponseEntity para manejar respuestas HTTP",
+      "mission_markdown": "### Tu Misión\n\n1. Crea un `@RestController` con path base `/api/products`\n2. Implementa un **repositorio en memoria** (List<Producto>)\n3. Implementa endpoint **GET** para listar todos los productos\n4. Implementa endpoint **GET** con PathVariable para obtener por ID\n5. Implementa endpoint **POST** para agregar productos\n6. Retorna códigos HTTP apropiados (200, 201, 404)",
+      "constraints": [
+        "Usa anotaciones @RestController, @GetMapping, @PostMapping",
+        "Usa @PathVariable y @RequestBody donde corresponda",
+        "Retorna ResponseEntity con status codes apropiados",
+        "No uses base de datos real, solo List en memoria"
+      ]
+    },
+    "starter_code": "package com.example.demo.controller;\n\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.annotation.*;\nimport java.util.ArrayList;\nimport java.util.List;\n\nclass Producto {\n    private Long id;\n    private String nombre;\n    private double precio;\n    \n    // Constructor, getters, setters (ya implementados)\n    public Producto(Long id, String nombre, double precio) {\n        this.id = id;\n        this.nombre = nombre;\n        this.precio = precio;\n    }\n    \n    public Long getId() { return id; }\n    public String getNombre() { return nombre; }\n    public double getPrecio() { return precio; }\n}\n\n// TODO: Agrega las anotaciones apropiadas\npublic class ProductoController {\n    \n    // TODO: Crea repositorio en memoria\n    private List<Producto> productos = new ArrayList<>();\n    \n    // Constructor con datos iniciales\n    public ProductoController() {\n        productos.add(new Producto(1L, \"Laptop\", 899.99));\n        productos.add(new Producto(2L, \"Mouse\", 25.50));\n        productos.add(new Producto(3L, \"Teclado\", 65.00));\n    }\n    \n    // TODO: Implementa GET /api/products\n    // Debe retornar ResponseEntity con la lista de productos\n    \n    // TODO: Implementa GET /api/products/{id}\n    // Debe retornar 200 si encuentra el producto, 404 si no\n    \n    // TODO: Implementa POST /api/products\n    // Debe agregar el producto y retornar 201 Created\n}",
+    "hidden_tests": [
+      {
+        "input": "GET /api/products",
+        "expected": "status == 200 && body.size() == 3"
+      },
+      {
+        "input": "GET /api/products/1",
+        "expected": "status == 200 && body.id == 1"
+      },
+      {
+        "input": "GET /api/products/999",
+        "expected": "status == 404"
+      },
+      {
+        "input": "POST /api/products {id: 4, nombre: 'Monitor', precio: 299.99}",
+        "expected": "status == 201"
+      }
+    ]
+  },
+  {
+    "id": "U7-SPRING-02",
+    "meta": {
+      "title": "Spring Boot: Service Layer con Validaciones",
+      "difficulty": "Medium",
+      "estimated_time_min": 35,
+      "language": "java",
+      "framework": "spring-boot",
+      "tags": ["Spring Boot", "Service", "Validaciones", "Java"]
+    },
+    "ui_config": {
+      "editor_language": "java",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "// Implementa el service..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEstás construyendo la **capa de negocio** de un sistema de usuarios. Necesitas implementar un Service con lógica de validación.\n\n**Reglas de negocio:**\n- Email debe ser válido (contener @)\n- Password debe tener al menos 8 caracteres\n- Username debe ser único\n- Edad debe ser >= 18",
+      "mission_markdown": "### Tu Misión\n\n1. Crea una clase `UsuarioService` con anotación `@Service`\n2. Implementa repositorio en memoria (Map<String, Usuario>)\n3. Implementa método `registrarUsuario()` con todas las validaciones\n4. Lanza **excepciones personalizadas** si hay errores de validación\n5. Implementa método `obtenerUsuario()` para buscar por username\n6. Implementa método `validarCredenciales()` para login",
+      "constraints": [
+        "Usa @Service para la anotación del servicio",
+        "Crea clase UsuarioInvalidoException extendiendo RuntimeException",
+        "Valida todos los campos antes de guardar",
+        "Retorna Optional<Usuario> en búsquedas"
+      ]
+    },
+    "starter_code": "package com.example.demo.service;\n\nimport org.springframework.stereotype.Service;\nimport java.util.HashMap;\nimport java.util.Map;\nimport java.util.Optional;\n\nclass Usuario {\n    private String username;\n    private String email;\n    private String password;\n    private int edad;\n    \n    public Usuario(String username, String email, String password, int edad) {\n        this.username = username;\n        this.email = email;\n        this.password = password;\n        this.edad = edad;\n    }\n    \n    // Getters\n    public String getUsername() { return username; }\n    public String getEmail() { return email; }\n    public String getPassword() { return password; }\n    public int getEdad() { return edad; }\n}\n\n// TODO: Crea excepción personalizada\nclass UsuarioInvalidoException extends RuntimeException {\n    public UsuarioInvalidoException(String mensaje) {\n        super(mensaje);\n    }\n}\n\n// TODO: Agrega anotación @Service\npublic class UsuarioService {\n    \n    // TODO: Repositorio en memoria\n    private Map<String, Usuario> usuarios = new HashMap<>();\n    \n    /**\n     * Registra un nuevo usuario con validaciones.\n     * @throws UsuarioInvalidoException si hay errores de validación\n     */\n    public Usuario registrarUsuario(String username, String email, String password, int edad) {\n        // TODO: Validar email (debe contener @)\n        \n        // TODO: Validar password (mínimo 8 caracteres)\n        \n        // TODO: Validar username único\n        \n        // TODO: Validar edad >= 18\n        \n        // TODO: Crear y guardar usuario\n        \n        return null;\n    }\n    \n    /**\n     * Obtiene un usuario por username.\n     */\n    public Optional<Usuario> obtenerUsuario(String username) {\n        // TODO: Implementar búsqueda\n        return Optional.empty();\n    }\n    \n    /**\n     * Valida credenciales para login.\n     */\n    public boolean validarCredenciales(String username, String password) {\n        // TODO: Implementar validación\n        return false;\n    }\n}",
+    "hidden_tests": [
+      {
+        "input": "username: 'john', email: 'john@example.com', password: 'secure123', edad: 25",
+        "expected": "usuario != null && usuarios.containsKey('john')"
+      },
+      {
+        "input": "username: 'jane', email: 'invalid-email', password: 'pass', edad: 25",
+        "expected": "throws UsuarioInvalidoException"
+      },
+      {
+        "input": "username: 'bob', email: 'bob@test.com', password: 'short', edad: 25",
+        "expected": "throws UsuarioInvalidoException"
+      },
+      {
+        "input": "username: 'alice', email: 'alice@test.com', password: 'password123', edad: 16",
+        "expected": "throws UsuarioInvalidoException"
+      }
+    ]
+  },
+  {
+    "id": "U7-SPRING-03",
+    "meta": {
+      "title": "Spring Boot: JPA Repository y Entidades",
+      "difficulty": "Hard",
+      "estimated_time_min": 40,
+      "language": "java",
+      "framework": "spring-boot",
+      "tags": ["Spring Boot", "JPA", "Repository", "Database", "Java"]
+    },
+    "ui_config": {
+      "editor_language": "java",
+      "read_only_lines": [1, 2, 3],
+      "placeholder_text": "// Implementa entidad y repository..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEstás diseñando el **modelo de datos** para un sistema de pedidos. Necesitas crear entidades JPA con relaciones y un repository con queries personalizadas.\n\n**Requisitos:**\n- Entidad `Pedido` con: id, fecha, total, estado\n- Entidad `ItemPedido` con relación ManyToOne a Pedido\n- Repository con queries custom (findByEstado, calcularTotalPorPeriodo)",
+      "mission_markdown": "### Tu Misión\n\n1. Crea entidad `Pedido` con anotaciones JPA (@Entity, @Id, @GeneratedValue)\n2. Crea entidad `ItemPedido` con relación @ManyToOne\n3. Implementa `PedidoRepository` extendiendo JpaRepository\n4. Agrega query method `findByEstado(String estado)`\n5. Agrega query custom con @Query para calcular total por rango de fechas\n6. Implementa cascada apropiada para items al guardar pedido",
+      "constraints": [
+        "Usa @Entity, @Table, @Id, @GeneratedValue apropiadamente",
+        "Usa @ManyToOne con fetch=LAZY para optimizar",
+        "Usa @Query con JPQL para queries complejas",
+        "Implementa CascadeType.ALL para items del pedido"
+      ]
+    },
+    "starter_code": "package com.example.demo.entity;\n\nimport javax.persistence.*;\nimport java.time.LocalDateTime;\nimport java.util.List;\nimport org.springframework.data.jpa.repository.JpaRepository;\nimport org.springframework.data.jpa.repository.Query;\nimport org.springframework.stereotype.Repository;\n\n// TODO: Implementa la entidad Pedido\n// Debe tener: id (Long), fechaPedido (LocalDateTime), total (Double), estado (String)\n// Debe tener relación OneToMany con ItemPedido\n\nclass Pedido {\n    // TODO: Agregar anotaciones JPA\n    \n    private Long id;\n    private LocalDateTime fechaPedido;\n    private Double total;\n    private String estado; // \"PENDIENTE\", \"PROCESADO\", \"ENVIADO\", \"ENTREGADO\"\n    \n    // TODO: Relación OneToMany con ItemPedido (cascade ALL)\n    private List<ItemPedido> items;\n    \n    // Constructor, getters, setters\n    public Pedido() {}\n    \n    public Pedido(LocalDateTime fechaPedido, Double total, String estado) {\n        this.fechaPedido = fechaPedido;\n        this.total = total;\n        this.estado = estado;\n    }\n    \n    // TODO: Implementar getters y setters\n}\n\n// TODO: Implementa la entidad ItemPedido\nclass ItemPedido {\n    // TODO: Agregar anotaciones JPA\n    \n    private Long id;\n    private String nombreProducto;\n    private Integer cantidad;\n    private Double precioUnitario;\n    \n    // TODO: Relación ManyToOne con Pedido (fetch LAZY)\n    private Pedido pedido;\n    \n    // Constructor, getters, setters\n    public ItemPedido() {}\n    \n    public ItemPedido(String nombreProducto, Integer cantidad, Double precioUnitario) {\n        this.nombreProducto = nombreProducto;\n        this.cantidad = cantidad;\n        this.precioUnitario = precioUnitario;\n    }\n    \n    // TODO: Implementar getters y setters\n}\n\n// TODO: Implementa el Repository\n// Debe extender JpaRepository<Pedido, Long>\n// Agregar query methods y custom queries\n\ninterface PedidoRepository {\n    // TODO: Implementar findByEstado\n    \n    // TODO: Implementar query custom para calcular total entre fechas\n    // @Query(\"SELECT SUM(p.total) FROM Pedido p WHERE p.fechaPedido BETWEEN :fechaInicio AND :fechaFin\")\n}",
+    "hidden_tests": [
+      {
+        "input": "findByEstado('PENDIENTE')",
+        "expected": "returns List<Pedido> with estado == 'PENDIENTE'"
+      },
+      {
+        "input": "save Pedido with items",
+        "expected": "items are also saved (cascade works)"
+      },
+      {
+        "input": "calcularTotalPorPeriodo(inicio, fin)",
+        "expected": "returns sum of all pedidos.total in date range"
+      }
+    ]
+  },
+  {
+    "id": "U7-SPRING-04",
+    "meta": {
+      "title": "Spring Boot: Exception Handling Global",
+      "difficulty": "Hard",
+      "estimated_time_min": 35,
+      "language": "java",
+      "framework": "spring-boot",
+      "tags": ["Spring Boot", "Exception Handling", "REST API", "Java"]
+    },
+    "ui_config": {
+      "editor_language": "java",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "// Implementa exception handler..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nTu API REST necesita **manejo centralizado de excepciones** para retornar respuestas JSON consistentes en todos los errores.\n\n**Requisitos:**\n- Manejar excepciones de validación (400 Bad Request)\n- Manejar recursos no encontrados (404 Not Found)\n- Manejar errores internos (500 Internal Server Error)\n- Retornar JSON con formato: {\"timestamp\", \"status\", \"error\", \"message\", \"path\"}",
+      "mission_markdown": "### Tu Misión\n\n1. Crea clase `GlobalExceptionHandler` con @ControllerAdvice\n2. Implementa método para manejar `ResourceNotFoundException` (404)\n3. Implementa método para manejar `ValidationException` (400)\n4. Implementa método para manejar `Exception` genérica (500)\n5. Cada handler debe retornar `ResponseEntity<ErrorResponse>`\n6. Crea clase `ErrorResponse` con los campos requeridos",
+      "constraints": [
+        "Usa @ControllerAdvice y @ExceptionHandler",
+        "Retorna ResponseEntity con HttpStatus apropiado",
+        "Incluye timestamp en formato ISO 8601",
+        "Loguea los errores con diferentes niveles (WARN para 404, ERROR para 500)"
+      ]
+    },
+    "starter_code": "package com.example.demo.exception;\n\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.annotation.ControllerAdvice;\nimport org.springframework.web.bind.annotation.ExceptionHandler;\nimport org.springframework.web.context.request.WebRequest;\nimport java.time.LocalDateTime;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\n\n// Excepciones personalizadas\nclass ResourceNotFoundException extends RuntimeException {\n    public ResourceNotFoundException(String mensaje) {\n        super(mensaje);\n    }\n}\n\nclass ValidationException extends RuntimeException {\n    public ValidationException(String mensaje) {\n        super(mensaje);\n    }\n}\n\n// TODO: Implementa la clase ErrorResponse\nclass ErrorResponse {\n    private LocalDateTime timestamp;\n    private int status;\n    private String error;\n    private String message;\n    private String path;\n    \n    // TODO: Constructor, getters, setters\n    \n    public ErrorResponse(LocalDateTime timestamp, int status, String error, String message, String path) {\n        this.timestamp = timestamp;\n        this.status = status;\n        this.error = error;\n        this.message = message;\n        this.path = path;\n    }\n    \n    // Getters\n    public LocalDateTime getTimestamp() { return timestamp; }\n    public int getStatus() { return status; }\n    public String getError() { return error; }\n    public String getMessage() { return message; }\n    public String getPath() { return path; }\n}\n\n// TODO: Implementa GlobalExceptionHandler con @ControllerAdvice\npublic class GlobalExceptionHandler {\n    \n    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);\n    \n    // TODO: Handler para ResourceNotFoundException (404)\n    // @ExceptionHandler(ResourceNotFoundException.class)\n    public ResponseEntity<ErrorResponse> handleResourceNotFound(\n            ResourceNotFoundException ex, \n            WebRequest request) {\n        // TODO: Implementar\n        // - Loguear con logger.warn\n        // - Crear ErrorResponse con status 404\n        // - Retornar ResponseEntity con HttpStatus.NOT_FOUND\n        return null;\n    }\n    \n    // TODO: Handler para ValidationException (400)\n    // @ExceptionHandler(ValidationException.class)\n    public ResponseEntity<ErrorResponse> handleValidationError(\n            ValidationException ex, \n            WebRequest request) {\n        // TODO: Implementar\n        // - Loguear con logger.warn\n        // - Crear ErrorResponse con status 400\n        // - Retornar ResponseEntity con HttpStatus.BAD_REQUEST\n        return null;\n    }\n    \n    // TODO: Handler para Exception genérica (500)\n    // @ExceptionHandler(Exception.class)\n    public ResponseEntity<ErrorResponse> handleGlobalError(\n            Exception ex, \n            WebRequest request) {\n        // TODO: Implementar\n        // - Loguear con logger.error\n        // - Crear ErrorResponse con status 500\n        // - Retornar ResponseEntity con HttpStatus.INTERNAL_SERVER_ERROR\n        return null;\n    }\n}",
+    "hidden_tests": [
+      {
+        "input": "throw ResourceNotFoundException",
+        "expected": "status == 404 && errorResponse contains timestamp, status, error, message, path"
+      },
+      {
+        "input": "throw ValidationException",
+        "expected": "status == 400 && errorResponse.error == 'Bad Request'"
+      },
+      {
+        "input": "throw generic Exception",
+        "expected": "status == 500 && errorResponse.error == 'Internal Server Error'"
+      }
+    ]
+  }
+]

@@ -101,6 +101,15 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize database: {e}")
         raise
 
+    # Auto-seed ejercicios si la BD está vacía
+    try:
+        logger.info("Checking if database needs seeding...")
+        from ..scripts.init_db import seed_exercises_if_empty
+        seed_exercises_if_empty()
+    except Exception as e:
+        logger.warning(f"Failed to auto-seed database (non-critical): {e}")
+        logger.warning("You can manually seed later with: docker-compose exec api python -m backend.scripts.seed_exercises")
+
     # Inicializar Prometheus metrics
     try:
         logger.info("Initializing Prometheus metrics...")

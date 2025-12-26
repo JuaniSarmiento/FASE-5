@@ -1,0 +1,116 @@
+[
+  {
+    "id": "U3-FUNC-01",
+    "meta": {
+      "title": "Funciones: Calculadora de IMC",
+      "difficulty": "Easy",
+      "estimated_time_min": 20,
+      "tags": ["Funciones", "Parámetros", "Return"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "# Define la función..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **desarrollador de apps de salud**. Necesitas crear una función que calcule el **Índice de Masa Corporal (IMC)**.\n\n**Fórmula:**\n$$IMC = \\frac{peso(kg)}{altura(m)^2}$$\n\n**Clasificación:**\n- < 18.5: **Bajo peso**\n- 18.5-24.9: **Normal**\n- 25-29.9: **Sobrepeso**\n- ≥ 30: **Obesidad**",
+      "mission_markdown": "### Tu Misión\n\n1. Función `calcular_imc(peso, altura)` → retorna el IMC\n2. Función `clasificar_imc(imc)` → retorna la categoría\n3. Función `generar_reporte(peso, altura)` → retorna string completo\n4. Valida que peso y altura sean positivos",
+      "constraints": [
+        "Redondea IMC a 1 decimal",
+        "Retorna None si los parámetros son inválidos",
+        "Usa docstrings en cada función"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTA LÍNEA\n\ndef calcular_imc(peso, altura):\n    \"\"\"\n    Calcula el Índice de Masa Corporal.\n    \n    Args:\n        peso (float): Peso en kilogramos\n        altura (float): Altura en metros\n    \n    Returns:\n        float: IMC redondeado a 1 decimal, o None si inválido\n    \"\"\"\n    # TODO: Valida parámetros\n    \n    # TODO: Calcula IMC\n    pass\n\ndef clasificar_imc(imc):\n    \"\"\"\n    Clasifica el IMC en una categoría.\n    \n    Args:\n        imc (float): Índice de masa corporal\n    \n    Returns:\n        str: Categoría del IMC\n    \"\"\"\n    # TODO: Implementa la clasificación\n    pass\n\ndef generar_reporte(peso, altura):\n    \"\"\"\n    Genera un reporte completo de IMC.\n    \n    Args:\n        peso (float): Peso en kg\n        altura (float): Altura en metros\n    \n    Returns:\n        str: Reporte formateado\n    \"\"\"\n    # TODO: Usa las funciones anteriores\n    imc = calcular_imc(peso, altura)\n    if imc is None:\n        return \"Datos inválidos\"\n    \n    categoria = clasificar_imc(imc)\n    return f\"IMC: {imc} - Categoría: {categoria}\"\n\n# Pruebas\nprint(generar_reporte(70, 1.75))  # IMC: 22.9 - Categoría: Normal\nprint(generar_reporte(90, 1.75))  # IMC: 29.4 - Categoría: Sobrepeso\nprint(generar_reporte(-70, 1.75)) # Datos inválidos",
+    "hidden_tests": [
+      {
+        "input": "calcular_imc(70, 1.75)",
+        "expected": "22.9"
+      },
+      {
+        "input": "clasificar_imc(22.9)",
+        "expected": "Normal"
+      },
+      {
+        "input": "calcular_imc(-70, 1.75)",
+        "expected": "None"
+      }
+    ]
+  },
+  {
+    "id": "U3-RECUR-01",
+    "meta": {
+      "title": "Recursión: Factorial y Fibonacci",
+      "difficulty": "Medium",
+      "estimated_time_min": 30,
+      "tags": ["Recursión", "Algoritmos", "Matemáticas"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "# Implementa las funciones recursivas..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **profesor de algoritmos** preparando ejemplos para tu clase de **recursión**.\n\n**Factorial:**\n$$n! = n \\times (n-1)!$$\n$$0! = 1$$\n\n**Fibonacci:**\n$$F(n) = F(n-1) + F(n-2)$$\n$$F(0) = 0, F(1) = 1$$",
+      "mission_markdown": "### Tu Misión\n\n1. Implementa `factorial(n)` de forma **recursiva**\n2. Implementa `fibonacci(n)` de forma **recursiva**\n3. Implementa `fibonacci_iterativo(n)` (BONUS) para comparar performance\n4. Maneja casos base correctamente",
+      "constraints": [
+        "No usar bucles en las versiones recursivas",
+        "Valida que n >= 0",
+        "Documenta el caso base en cada función"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTA LÍNEA\n\ndef factorial(n):\n    \"\"\"\n    Calcula el factorial de n recursivamente.\n    \n    Args:\n        n (int): Número entero no negativo\n    \n    Returns:\n        int: n! o None si n < 0\n    \"\"\"\n    # TODO: Valida entrada\n    \n    # TODO: Caso base\n    \n    # TODO: Caso recursivo\n    pass\n\ndef fibonacci(n):\n    \"\"\"\n    Calcula el n-ésimo número de Fibonacci recursivamente.\n    \n    Args:\n        n (int): Posición en la secuencia (0-indexado)\n    \n    Returns:\n        int: F(n) o None si n < 0\n    \"\"\"\n    # TODO: Valida entrada\n    \n    # TODO: Casos base (F(0) = 0, F(1) = 1)\n    \n    # TODO: Caso recursivo\n    pass\n\ndef fibonacci_iterativo(n):\n    \"\"\"\n    Calcula Fibonacci iterativamente (más eficiente).\n    \n    Args:\n        n (int): Posición en la secuencia\n    \n    Returns:\n        int: F(n) o None si n < 0\n    \"\"\"\n    # BONUS: Implementa la versión iterativa\n    pass\n\n# Pruebas\nprint(f\"5! = {factorial(5)}\")  # 120\nprint(f\"F(10) = {fibonacci(10)}\")  # 55\nprint(f\"F(10) iterativo = {fibonacci_iterativo(10)}\")  # 55",
+    "hidden_tests": [
+      {
+        "input": "factorial(5)",
+        "expected": "120"
+      },
+      {
+        "input": "factorial(0)",
+        "expected": "1"
+      },
+      {
+        "input": "fibonacci(10)",
+        "expected": "55"
+      },
+      {
+        "input": "fibonacci(0)",
+        "expected": "0"
+      },
+      {
+        "input": "fibonacci(1)",
+        "expected": "1"
+      }
+    ]
+  },
+  {
+    "id": "U3-LAMBDA-01",
+    "meta": {
+      "title": "Funciones Lambda y Map/Filter",
+      "difficulty": "Medium",
+      "estimated_time_min": 25,
+      "tags": ["Lambda", "Map", "Filter", "Programación Funcional"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2, 3, 4],
+      "placeholder_text": "# Usa lambda, map, filter..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **Data Engineer** procesando una lista de transacciones bancarias.\n\n**Datos:**\n```python\ntransacciones = [\n    {\"id\": 1, \"monto\": 150.50, \"tipo\": \"ingreso\"},\n    {\"id\": 2, \"monto\": 75.20, \"tipo\": \"egreso\"},\n    {\"id\": 3, \"monto\": 200.00, \"tipo\": \"ingreso\"},\n    {\"id\": 4, \"monto\": 50.00, \"tipo\": \"egreso\"}\n]\n```",
+      "mission_markdown": "### Tu Misión\n\n1. Usa **filter** + **lambda** para obtener solo los ingresos\n2. Usa **map** + **lambda** para extraer los montos de ingresos\n3. Usa **lambda** para calcular el balance (ingresos - egresos)\n4. Imprime el reporte",
+      "constraints": [
+        "Debe usar lambda en cada operación",
+        "No usar bucles for explícitos",
+        "Convierte los resultados de map/filter a listas para imprimir"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTAS LÍNEAS\ntransacciones = [\n    {\"id\": 1, \"monto\": 150.50, \"tipo\": \"ingreso\"},\n    {\"id\": 2, \"monto\": 75.20, \"tipo\": \"egreso\"},\n    {\"id\": 3, \"monto\": 200.00, \"tipo\": \"ingreso\"},\n    {\"id\": 4, \"monto\": 50.00, \"tipo\": \"egreso\"}\n]\n\n# TODO: Filtra solo ingresos usando filter + lambda\ningresos = list(filter(lambda x: False, transacciones))  # Corrige el lambda\n\n# TODO: Filtra solo egresos\negresos = list(filter(lambda x: False, transacciones))  # Corrige el lambda\n\n# TODO: Extrae montos de ingresos con map + lambda\nmontos_ingresos = list(map(lambda x: 0, ingresos))  # Corrige el lambda\n\n# TODO: Extrae montos de egresos\nmontos_egresos = list(map(lambda x: 0, egresos))  # Corrige el lambda\n\n# TODO: Calcula totales usando sum\ntotal_ingresos = sum(montos_ingresos)\ntotal_egresos = sum(montos_egresos)\nbalance = total_ingresos - total_egresos\n\nprint(\"=== REPORTE FINANCIERO ===\")\nprint(f\"Total Ingresos: ${total_ingresos:.2f}\")\nprint(f\"Total Egresos: ${total_egresos:.2f}\")\nprint(f\"Balance: ${balance:.2f}\")",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "total_ingresos == 350.50 and total_egresos == 125.20 and balance == 225.30"
+      }
+    ]
+  }
+]

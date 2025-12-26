@@ -38,6 +38,7 @@ from enum import Enum
 
 from sqlalchemy.orm import Session, selectinload, joinedload
 from sqlalchemy import desc, select
+from sqlalchemy.exc import SQLAlchemyError
 
 from backend.core.constants import utc_now
 
@@ -62,6 +63,14 @@ from .models import (
     SimulatorEventDB,
     LTIDeploymentDB,
     LTISessionDB,
+    # FASE 1.5 + FASE 2: Exercise models
+    SubjectDB,
+    ExerciseDB,
+    ExerciseHintDB,
+    ExerciseTestDB,
+    ExerciseAttemptDB,
+    ExerciseRubricCriterionDB,
+    RubricLevelDB,
 )
 from ..models.trace import CognitiveTrace, TraceSequence, CognitiveState, TraceLevel, InteractionType
 from ..models.risk import Risk, RiskReport, RiskType, RiskLevel
@@ -4184,3 +4193,785 @@ class StudentProfileRepository:
             .all()
         )
         return {profile.student_id: profile for profile in profiles}
+
+
+# =============================================================================
+# EXERCISE REPOSITORIES (FASE 1.5 + FASE 2)
+# =============================================================================
+
+
+class SubjectRepository:
+    """
+    Repository for Subject (materias) operations
+
+    Manages programming subjects/courses (Python, Java, etc.)
+    """
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_all(self, active_only: bool = True) -> List[SubjectDB]:
+        """Get all subjects"""
+        query = self.db.query(SubjectDB)
+        if active_only:
+            query = query.filter(SubjectDB.is_active == True)
+        return query.order_by(SubjectDB.name).all()
+
+    def get_by_code(self, code: str) -> Optional[SubjectDB]:
+        """Get subject by code (e.g., 'PYTHON', 'JAVA')"""
+        return self.db.query(SubjectDB).filter(SubjectDB.code == code).first()
+
+    def get_by_language(self, language: str, active_only: bool = True) -> List[SubjectDB]:
+        """Get subjects by programming language"""
+        query = self.db.query(SubjectDB).filter(SubjectDB.language == language)
+        if active_only:
+            query = query.filter(SubjectDB.is_active == True)
+        return query.all()
+
+    def create(self, subject: SubjectDB) -> SubjectDB:
+        """Create new subject"""
+        try:
+            self.db.add(subject)
+            self.db.commit()
+            self.db.refresh(subject)
+            logger.info(f"Subject created: {subject.code}")
+            return subject
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error creating subject {subject.code}: {e}")
+            raise
+
+    def update(self, code: str, updates: dict) -> Optional[SubjectDB]:
+        """Update subject"""
+        try:
+            subject = self.get_by_code(code)
+            if not subject:
+                return None
+
+            for key, value in updates.items():
+                if hasattr(subject, key):
+                    setattr(subject, key, value)
+
+            subject.updated_at = utc_now()
+            self.db.commit()
+            self.db.refresh(subject)
+            logger.info(f"Subject updated: {code}")
+            return subject
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error updating subject {code}: {e}")
+            raise
+
+    def delete(self, code: str) -> bool:
+        """Delete subject (hard delete, cascades to exercises)"""
+        try:
+            subject = self.get_by_code(code)
+            if not subject:
+                return False
+
+            self.db.delete(subject)
+            self.db.commit()
+            logger.warning(f"Subject deleted: {code}")
+            return True
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error deleting subject {code}: {e}")
+            raise
+
+
+class ExerciseRepository:
+    """
+    Repository for Exercise operations
+
+    Manages programming exercises with soft delete support
+    """
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_all(self, active_only: bool = True, include_deleted: bool = False) -> List[ExerciseDB]:
+        """Get all exercises"""
+        query = self.db.query(ExerciseDB)
+        if active_only:
+            query = query.filter(ExerciseDB.is_active == True)
+        if not include_deleted:
+            query = query.filter(ExerciseDB.deleted_at == None)
+        return query.order_by(ExerciseDB.unit, ExerciseDB.title).all()
+
+    def get_by_id(self, exercise_id: str, include_deleted: bool = False) -> Optional[ExerciseDB]:
+        """Get exercise by ID"""
+        query = self.db.query(ExerciseDB).filter(ExerciseDB.id == exercise_id)
+        if not include_deleted:
+            query = query.filter(ExerciseDB.deleted_at == None)
+        return query.first()
+
+    def get_by_subject(self, subject_code: str, active_only: bool = True) -> List[ExerciseDB]:
+        """Get exercises by subject"""
+        query = self.db.query(ExerciseDB).filter(
+            ExerciseDB.subject_code == subject_code,
+            ExerciseDB.deleted_at == None
+        )
+        if active_only:
+            query = query.filter(ExerciseDB.is_active == True)
+        return query.order_by(ExerciseDB.unit, ExerciseDB.title).all()
+
+    def get_by_unit(self, subject_code: str, unit: int, active_only: bool = True) -> List[ExerciseDB]:
+        """Get exercises by subject and unit"""
+        query = self.db.query(ExerciseDB).filter(
+            ExerciseDB.subject_code == subject_code,
+            ExerciseDB.unit == unit,
+            ExerciseDB.deleted_at == None
+        )
+        if active_only:
+            query = query.filter(ExerciseDB.is_active == True)
+        return query.order_by(ExerciseDB.title).all()
+
+    def get_with_hints(self, exercise_id: str) -> Optional[ExerciseDB]:
+        """Get exercise with hints (eager loading)"""
+        from sqlalchemy.orm import selectinload
+        return (
+            self.db.query(ExerciseDB)
+            .options(selectinload(ExerciseDB.hints))
+            .filter(
+                ExerciseDB.id == exercise_id,
+                ExerciseDB.deleted_at == None
+            )
+            .first()
+        )
+
+    def get_with_tests(self, exercise_id: str) -> Optional[ExerciseDB]:
+        """Get exercise with tests (eager loading)"""
+        from sqlalchemy.orm import selectinload
+        return (
+            self.db.query(ExerciseDB)
+            .options(selectinload(ExerciseDB.tests))
+            .filter(
+                ExerciseDB.id == exercise_id,
+                ExerciseDB.deleted_at == None
+            )
+            .first()
+        )
+
+    def get_with_details(self, exercise_id: str) -> Optional[ExerciseDB]:
+        """Get exercise with hints, tests, and rubric (eager loading)"""
+        from sqlalchemy.orm import selectinload
+        return (
+            self.db.query(ExerciseDB)
+            .options(
+                selectinload(ExerciseDB.hints),
+                selectinload(ExerciseDB.tests),
+                selectinload(ExerciseDB.rubric_criteria).selectinload(ExerciseRubricCriterionDB.levels)
+            )
+            .filter(
+                ExerciseDB.id == exercise_id,
+                ExerciseDB.deleted_at == None
+            )
+            .first()
+        )
+
+    def search(self, query_text: str, active_only: bool = True) -> List[ExerciseDB]:
+        """Search exercises by title/description (case-insensitive)"""
+        search_pattern = f"%{query_text}%"
+        query = self.db.query(ExerciseDB).filter(
+            (ExerciseDB.title.ilike(search_pattern)) |
+            (ExerciseDB.description.ilike(search_pattern)),
+            ExerciseDB.deleted_at == None
+        )
+        if active_only:
+            query = query.filter(ExerciseDB.is_active == True)
+        return query.all()
+
+    def create(self, exercise: ExerciseDB) -> ExerciseDB:
+        """Create new exercise"""
+        try:
+            self.db.add(exercise)
+            self.db.commit()
+            self.db.refresh(exercise)
+            logger.info(f"Exercise created: {exercise.id} - {exercise.title}")
+            return exercise
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error creating exercise {exercise.id}: {e}")
+            raise
+
+    def update(self, exercise_id: str, updates: dict) -> Optional[ExerciseDB]:
+        """Update exercise"""
+        try:
+            exercise = self.get_by_id(exercise_id)
+            if not exercise:
+                return None
+
+            for key, value in updates.items():
+                if hasattr(exercise, key):
+                    setattr(exercise, key, value)
+
+            exercise.updated_at = utc_now()
+            self.db.commit()
+            self.db.refresh(exercise)
+            logger.info(f"Exercise updated: {exercise_id}")
+            return exercise
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error updating exercise {exercise_id}: {e}")
+            raise
+
+    def soft_delete(self, exercise_id: str) -> bool:
+        """Soft delete exercise (set deleted_at)"""
+        try:
+            exercise = self.get_by_id(exercise_id)
+            if not exercise:
+                return False
+
+            exercise.deleted_at = utc_now()
+            exercise.is_active = False
+            self.db.commit()
+            logger.warning(f"Exercise soft deleted: {exercise_id}")
+            return True
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error soft deleting exercise {exercise_id}: {e}")
+            raise
+
+    def restore(self, exercise_id: str) -> Optional[ExerciseDB]:
+        """Restore soft-deleted exercise"""
+        try:
+            exercise = self.get_by_id(exercise_id, include_deleted=True)
+            if not exercise or exercise.deleted_at is None:
+                return None
+
+            exercise.deleted_at = None
+            exercise.is_active = True
+            exercise.updated_at = utc_now()
+            self.db.commit()
+            self.db.refresh(exercise)
+            logger.info(f"Exercise restored: {exercise_id}")
+            return exercise
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error restoring exercise {exercise_id}: {e}")
+            raise
+
+
+class ExerciseHintRepository:
+    """Repository for Exercise Hints operations"""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_by_exercise(self, exercise_id: str) -> List[ExerciseHintDB]:
+        """Get all hints for an exercise, ordered by hint_number"""
+        return (
+            self.db.query(ExerciseHintDB)
+            .filter(ExerciseHintDB.exercise_id == exercise_id)
+            .order_by(ExerciseHintDB.hint_number)
+            .all()
+        )
+
+    def get_by_id(self, hint_id: str) -> Optional[ExerciseHintDB]:
+        """Get hint by ID"""
+        return self.db.query(ExerciseHintDB).filter(ExerciseHintDB.id == hint_id).first()
+
+    def get_next_hint(self, exercise_id: str, current_hint_number: int) -> Optional[ExerciseHintDB]:
+        """Get next available hint"""
+        return (
+            self.db.query(ExerciseHintDB)
+            .filter(
+                ExerciseHintDB.exercise_id == exercise_id,
+                ExerciseHintDB.hint_number == current_hint_number + 1
+            )
+            .first()
+        )
+
+    def create(self, hint: ExerciseHintDB) -> ExerciseHintDB:
+        """Create new hint"""
+        try:
+            self.db.add(hint)
+            self.db.commit()
+            self.db.refresh(hint)
+            logger.info(f"Hint created: exercise {hint.exercise_id}, hint #{hint.hint_number}")
+            return hint
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error creating hint: {e}")
+            raise
+
+    def create_batch(self, hints: List[ExerciseHintDB]) -> List[ExerciseHintDB]:
+        """Create multiple hints at once"""
+        try:
+            self.db.add_all(hints)
+            self.db.commit()
+            for hint in hints:
+                self.db.refresh(hint)
+            logger.info(f"Batch created {len(hints)} hints")
+            return hints
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error batch creating hints: {e}")
+            raise
+
+    def update(self, hint_id: str, updates: dict) -> Optional[ExerciseHintDB]:
+        """Update hint"""
+        try:
+            hint = self.get_by_id(hint_id)
+            if not hint:
+                return None
+
+            for key, value in updates.items():
+                if hasattr(hint, key):
+                    setattr(hint, key, value)
+
+            self.db.commit()
+            self.db.refresh(hint)
+            logger.info(f"Hint updated: {hint_id}")
+            return hint
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error updating hint {hint_id}: {e}")
+            raise
+
+    def delete(self, hint_id: str) -> bool:
+        """Delete hint"""
+        try:
+            hint = self.get_by_id(hint_id)
+            if not hint:
+                return False
+
+            self.db.delete(hint)
+            self.db.commit()
+            logger.warning(f"Hint deleted: {hint_id}")
+            return True
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error deleting hint {hint_id}: {e}")
+            raise
+
+
+class ExerciseTestRepository:
+    """Repository for Exercise Tests operations"""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_by_exercise(self, exercise_id: str) -> List[ExerciseTestDB]:
+        """Get all tests for an exercise"""
+        return (
+            self.db.query(ExerciseTestDB)
+            .filter(ExerciseTestDB.exercise_id == exercise_id)
+            .order_by(ExerciseTestDB.test_number)
+            .all()
+        )
+
+    def get_visible_tests(self, exercise_id: str) -> List[ExerciseTestDB]:
+        """Get only visible tests (for students)"""
+        return (
+            self.db.query(ExerciseTestDB)
+            .filter(
+                ExerciseTestDB.exercise_id == exercise_id,
+                ExerciseTestDB.is_hidden == False
+            )
+            .order_by(ExerciseTestDB.test_number)
+            .all()
+        )
+
+    def get_hidden_tests(self, exercise_id: str) -> List[ExerciseTestDB]:
+        """Get only hidden tests (for evaluation)"""
+        return (
+            self.db.query(ExerciseTestDB)
+            .filter(
+                ExerciseTestDB.exercise_id == exercise_id,
+                ExerciseTestDB.is_hidden == True
+            )
+            .order_by(ExerciseTestDB.test_number)
+            .all()
+        )
+
+    def get_by_id(self, test_id: str) -> Optional[ExerciseTestDB]:
+        """Get test by ID"""
+        return self.db.query(ExerciseTestDB).filter(ExerciseTestDB.id == test_id).first()
+
+    def create(self, test: ExerciseTestDB) -> ExerciseTestDB:
+        """Create new test"""
+        try:
+            self.db.add(test)
+            self.db.commit()
+            self.db.refresh(test)
+            logger.info(f"Test created: exercise {test.exercise_id}, test #{test.test_number}")
+            return test
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error creating test: {e}")
+            raise
+
+    def create_batch(self, tests: List[ExerciseTestDB]) -> List[ExerciseTestDB]:
+        """Create multiple tests at once"""
+        try:
+            self.db.add_all(tests)
+            self.db.commit()
+            for test in tests:
+                self.db.refresh(test)
+            logger.info(f"Batch created {len(tests)} tests")
+            return tests
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error batch creating tests: {e}")
+            raise
+
+    def update(self, test_id: str, updates: dict) -> Optional[ExerciseTestDB]:
+        """Update test"""
+        try:
+            test = self.get_by_id(test_id)
+            if not test:
+                return None
+
+            for key, value in updates.items():
+                if hasattr(test, key):
+                    setattr(test, key, value)
+
+            self.db.commit()
+            self.db.refresh(test)
+            logger.info(f"Test updated: {test_id}")
+            return test
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error updating test {test_id}: {e}")
+            raise
+
+    def delete(self, test_id: str) -> bool:
+        """Delete test"""
+        try:
+            test = self.get_by_id(test_id)
+            if not test:
+                return False
+
+            self.db.delete(test)
+            self.db.commit()
+            logger.warning(f"Test deleted: {test_id}")
+            return True
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error deleting test {test_id}: {e}")
+            raise
+
+
+class ExerciseAttemptRepository:
+    """Repository for Exercise Attempts operations with analytics"""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create(self, attempt: ExerciseAttemptDB) -> ExerciseAttemptDB:
+        """Create new attempt"""
+        try:
+            self.db.add(attempt)
+            self.db.commit()
+            self.db.refresh(attempt)
+            logger.info(f"Attempt created: {attempt.id} for exercise {attempt.exercise_id}")
+            return attempt
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error creating attempt: {e}")
+            raise
+
+    def get_by_id(self, attempt_id: str) -> Optional[ExerciseAttemptDB]:
+        """Get attempt by ID"""
+        return self.db.query(ExerciseAttemptDB).filter(ExerciseAttemptDB.id == attempt_id).first()
+
+    def get_by_student(self, student_id: str, limit: int = 50) -> List[ExerciseAttemptDB]:
+        """Get all attempts by student"""
+        return (
+            self.db.query(ExerciseAttemptDB)
+            .filter(ExerciseAttemptDB.student_id == student_id)
+            .order_by(desc(ExerciseAttemptDB.submitted_at))
+            .limit(limit)
+            .all()
+        )
+
+    def get_by_exercise(self, exercise_id: str, limit: int = 100) -> List[ExerciseAttemptDB]:
+        """Get all attempts for an exercise (for analytics)"""
+        return (
+            self.db.query(ExerciseAttemptDB)
+            .filter(ExerciseAttemptDB.exercise_id == exercise_id)
+            .order_by(desc(ExerciseAttemptDB.submitted_at))
+            .limit(limit)
+            .all()
+        )
+
+    def get_by_session(self, session_id: str) -> List[ExerciseAttemptDB]:
+        """Get all attempts in a session"""
+        return (
+            self.db.query(ExerciseAttemptDB)
+            .filter(ExerciseAttemptDB.session_id == session_id)
+            .order_by(ExerciseAttemptDB.submitted_at)
+            .all()
+        )
+
+    def get_latest_attempt(self, student_id: str, exercise_id: str) -> Optional[ExerciseAttemptDB]:
+        """Get most recent attempt by student for an exercise"""
+        return (
+            self.db.query(ExerciseAttemptDB)
+            .filter(
+                ExerciseAttemptDB.student_id == student_id,
+                ExerciseAttemptDB.exercise_id == exercise_id
+            )
+            .order_by(desc(ExerciseAttemptDB.submitted_at))
+            .first()
+        )
+
+    def get_student_progress(self, student_id: str) -> Dict[str, Any]:
+        """Get student progress analytics"""
+        from sqlalchemy import func
+
+        total_attempts = (
+            self.db.query(func.count(ExerciseAttemptDB.id))
+            .filter(ExerciseAttemptDB.student_id == student_id)
+            .scalar()
+        )
+
+        passed = (
+            self.db.query(func.count(func.distinct(ExerciseAttemptDB.exercise_id)))
+            .filter(
+                ExerciseAttemptDB.student_id == student_id,
+                ExerciseAttemptDB.status == "PASS"
+            )
+            .scalar()
+        )
+
+        avg_score = (
+            self.db.query(func.avg(ExerciseAttemptDB.score))
+            .filter(
+                ExerciseAttemptDB.student_id == student_id,
+                ExerciseAttemptDB.score.isnot(None)
+            )
+            .scalar() or 0.0
+        )
+
+        avg_hints = (
+            self.db.query(func.avg(ExerciseAttemptDB.hints_used))
+            .filter(ExerciseAttemptDB.student_id == student_id)
+            .scalar() or 0.0
+        )
+
+        return {
+            "total_attempts": total_attempts,
+            "exercises_passed": passed,
+            "average_score": round(float(avg_score), 2),
+            "average_hints_used": round(float(avg_hints), 2)
+        }
+
+    def get_exercise_analytics(self, exercise_id: str) -> Dict[str, Any]:
+        """Get exercise analytics (difficulty, success rate)"""
+        from sqlalchemy import func
+
+        total = (
+            self.db.query(func.count(ExerciseAttemptDB.id))
+            .filter(ExerciseAttemptDB.exercise_id == exercise_id)
+            .scalar()
+        )
+
+        passed = (
+            self.db.query(func.count(ExerciseAttemptDB.id))
+            .filter(
+                ExerciseAttemptDB.exercise_id == exercise_id,
+                ExerciseAttemptDB.status == "PASS"
+            )
+            .scalar()
+        )
+
+        avg_attempts = (
+            self.db.query(func.avg(ExerciseAttemptDB.attempt_number))
+            .filter(
+                ExerciseAttemptDB.exercise_id == exercise_id,
+                ExerciseAttemptDB.status == "PASS"
+            )
+            .scalar() or 0.0
+        )
+
+        avg_hints = (
+            self.db.query(func.avg(ExerciseAttemptDB.hints_used))
+            .filter(ExerciseAttemptDB.exercise_id == exercise_id)
+            .scalar() or 0.0
+        )
+
+        success_rate = (passed / total * 100) if total > 0 else 0.0
+
+        return {
+            "total_attempts": total,
+            "passed_attempts": passed,
+            "success_rate": round(success_rate, 2),
+            "average_attempts_until_pass": round(float(avg_attempts), 2),
+            "average_hints_used": round(float(avg_hints), 2)
+        }
+
+
+class RubricCriterionRepository:
+    """Repository for Rubric Criteria operations (FASE 1.5)"""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_by_exercise(self, exercise_id: str) -> List[ExerciseRubricCriterionDB]:
+        """Get all criteria for an exercise, ordered by display_order"""
+        from sqlalchemy.orm import selectinload
+        return (
+            self.db.query(ExerciseRubricCriterionDB)
+            .options(selectinload(ExerciseRubricCriterionDB.levels))
+            .filter(ExerciseRubricCriterionDB.exercise_id == exercise_id)
+            .order_by(ExerciseRubricCriterionDB.display_order)
+            .all()
+        )
+
+    def get_by_id(self, criterion_id: str) -> Optional[ExerciseRubricCriterionDB]:
+        """Get criterion by ID"""
+        return (
+            self.db.query(ExerciseRubricCriterionDB)
+            .filter(ExerciseRubricCriterionDB.id == criterion_id)
+            .first()
+        )
+
+    def create(self, criterion: ExerciseRubricCriterionDB) -> ExerciseRubricCriterionDB:
+        """Create new criterion"""
+        try:
+            self.db.add(criterion)
+            self.db.commit()
+            self.db.refresh(criterion)
+            logger.info(f"Rubric criterion created: {criterion.id} for exercise {criterion.exercise_id}")
+            return criterion
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error creating criterion: {e}")
+            raise
+
+    def create_batch(self, criteria: List[ExerciseRubricCriterionDB]) -> List[ExerciseRubricCriterionDB]:
+        """Create multiple criteria at once"""
+        try:
+            self.db.add_all(criteria)
+            self.db.commit()
+            for criterion in criteria:
+                self.db.refresh(criterion)
+            logger.info(f"Batch created {len(criteria)} criteria")
+            return criteria
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error batch creating criteria: {e}")
+            raise
+
+    def update(self, criterion_id: str, updates: dict) -> Optional[ExerciseRubricCriterionDB]:
+        """Update criterion"""
+        try:
+            criterion = self.get_by_id(criterion_id)
+            if not criterion:
+                return None
+
+            for key, value in updates.items():
+                if hasattr(criterion, key):
+                    setattr(criterion, key, value)
+
+            criterion.updated_at = utc_now()
+            self.db.commit()
+            self.db.refresh(criterion)
+            logger.info(f"Criterion updated: {criterion_id}")
+            return criterion
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error updating criterion {criterion_id}: {e}")
+            raise
+
+    def delete(self, criterion_id: str) -> bool:
+        """Delete criterion (cascades to levels)"""
+        try:
+            criterion = self.get_by_id(criterion_id)
+            if not criterion:
+                return False
+
+            self.db.delete(criterion)
+            self.db.commit()
+            logger.warning(f"Criterion deleted: {criterion_id}")
+            return True
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error deleting criterion {criterion_id}: {e}")
+            raise
+
+
+class RubricLevelRepository:
+    """Repository for Rubric Levels operations (FASE 1.5)"""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_by_criterion(self, criterion_id: str) -> List[RubricLevelDB]:
+        """Get all levels for a criterion, ordered by min_score descending"""
+        return (
+            self.db.query(RubricLevelDB)
+            .filter(RubricLevelDB.criterion_id == criterion_id)
+            .order_by(desc(RubricLevelDB.min_score))
+            .all()
+        )
+
+    def get_by_id(self, level_id: str) -> Optional[RubricLevelDB]:
+        """Get level by ID"""
+        return self.db.query(RubricLevelDB).filter(RubricLevelDB.id == level_id).first()
+
+    def create(self, level: RubricLevelDB) -> RubricLevelDB:
+        """Create new level"""
+        try:
+            self.db.add(level)
+            self.db.commit()
+            self.db.refresh(level)
+            logger.info(f"Rubric level created: {level.id} ({level.level_name})")
+            return level
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error creating level: {e}")
+            raise
+
+    def create_batch(self, levels: List[RubricLevelDB]) -> List[RubricLevelDB]:
+        """Create multiple levels at once"""
+        try:
+            self.db.add_all(levels)
+            self.db.commit()
+            for level in levels:
+                self.db.refresh(level)
+            logger.info(f"Batch created {len(levels)} levels")
+            return levels
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error batch creating levels: {e}")
+            raise
+
+    def update(self, level_id: str, updates: dict) -> Optional[RubricLevelDB]:
+        """Update level"""
+        try:
+            level = self.get_by_id(level_id)
+            if not level:
+                return None
+
+            for key, value in updates.items():
+                if hasattr(level, key):
+                    setattr(level, key, value)
+
+            level.updated_at = utc_now()
+            self.db.commit()
+            self.db.refresh(level)
+            logger.info(f"Level updated: {level_id}")
+            return level
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error updating level {level_id}: {e}")
+            raise
+
+    def delete(self, level_id: str) -> bool:
+        """Delete level"""
+        try:
+            level = self.get_by_id(level_id)
+            if not level:
+                return False
+
+            self.db.delete(level)
+            self.db.commit()
+            logger.warning(f"Level deleted: {level_id}")
+            return True
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"Error deleting level {level_id}: {e}")
+            raise

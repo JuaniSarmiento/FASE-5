@@ -1,0 +1,387 @@
+{
+  "materia": "Programación 1",
+  "codigo": "PROG1",
+  "temas": [
+    {
+      "id": "condicionales",
+      "nombre": "Estructuras Condicionales",
+      "descripcion": "If, elif, else - Toma de decisiones en código",
+      "dificultad": "Fácil",
+      "tiempo_estimado_min": 60,
+      "ejercicio": {
+        "titulo": "Sistema de Calificaciones Académicas",
+        "consigna": "Desarrolla un sistema que clasifique las notas de los estudiantes según diferentes criterios. El sistema debe validar notas, calcular promedios, y asignar letras de calificación según rangos establecidos.",
+        "contexto": "Trabajas en el departamento de sistemas de una universidad. El área académica necesita un programa para procesar las calificaciones de los estudiantes del primer semestre. El sistema debe ser robusto y manejar diferentes casos especiales.",
+        "requisitos": [
+          "Función que valide que una nota esté entre 0 y 100",
+          "Función que convierta nota numérica a letra (A: 90-100, B: 80-89, C: 70-79, D: 60-69, F: 0-59)",
+          "Función que calcule el promedio de 3 notas",
+          "Función que determine si un estudiante aprobó (promedio >= 60)",
+          "Manejo de casos especiales (notas inválidas, promedios exactos en límites)"
+        ],
+        "codigo_inicial": "# Sistema de Calificaciones Académicas\n# Programación 1 - Estructuras Condicionales\n\ndef validar_nota(nota):\n    \"\"\"\n    Valida que una nota esté en el rango válido (0-100)\n    \n    Args:\n        nota (float): La nota a validar\n    \n    Returns:\n        bool: True si la nota es válida, False en caso contrario\n    \n    Ejemplo:\n        validar_nota(85) -> True\n        validar_nota(105) -> False\n    \"\"\"\n    # TODO: Implementar validación\n    pass\n\ndef nota_a_letra(nota):\n    \"\"\"\n    Convierte una nota numérica a su equivalente en letra\n    \n    Args:\n        nota (float): Nota entre 0 y 100\n    \n    Returns:\n        str: Letra correspondiente (A, B, C, D, F) o \"INVALID\" si la nota no es válida\n    \n    Escala:\n        A: 90-100\n        B: 80-89\n        C: 70-79\n        D: 60-69\n        F: 0-59\n    \n    Ejemplo:\n        nota_a_letra(95) -> \"A\"\n        nota_a_letra(73) -> \"C\"\n    \"\"\"\n    # TODO: Primero validar la nota usando validar_nota()\n    # TODO: Luego usar if-elif-else para determinar la letra\n    pass\n\ndef calcular_promedio(nota1, nota2, nota3):\n    \"\"\"\n    Calcula el promedio de tres notas\n    \n    Args:\n        nota1, nota2, nota3 (float): Las tres notas\n    \n    Returns:\n        float: El promedio, o -1 si alguna nota es inválida\n    \n    Ejemplo:\n        calcular_promedio(80, 90, 85) -> 85.0\n    \"\"\"\n    # TODO: Validar todas las notas\n    # TODO: Si todas son válidas, calcular y retornar el promedio\n    # TODO: Si alguna es inválida, retornar -1\n    pass\n\ndef estudiante_aprobo(promedio):\n    \"\"\"\n    Determina si un estudiante aprobó basándose en su promedio\n    \n    Args:\n        promedio (float): El promedio del estudiante\n    \n    Returns:\n        bool: True si aprobó (>= 60), False en caso contrario\n    \n    Ejemplo:\n        estudiante_aprobo(65) -> True\n        estudiante_aprobo(55) -> False\n    \"\"\"\n    # TODO: Implementar lógica de aprobación\n    pass\n\n# NO MODIFICAR - Tests automáticos\nif __name__ == \"__main__\":\n    # Test 1: Validación\n    assert validar_nota(85) == True\n    assert validar_nota(105) == False\n    assert validar_nota(-5) == False\n    \n    # Test 2: Conversión a letra\n    assert nota_a_letra(95) == \"A\"\n    assert nota_a_letra(85) == \"B\"\n    assert nota_a_letra(75) == \"C\"\n    assert nota_a_letra(65) == \"D\"\n    assert nota_a_letra(50) == \"F\"\n    assert nota_a_letra(105) == \"INVALID\"\n    \n    # Test 3: Promedio\n    assert calcular_promedio(80, 90, 70) == 80.0\n    assert calcular_promedio(100, 100, 100) == 100.0\n    assert calcular_promedio(105, 90, 80) == -1\n    \n    # Test 4: Aprobación\n    assert estudiante_aprobo(60) == True\n    assert estudiante_aprobo(59) == False\n    assert estudiante_aprobo(85) == True\n    \n    print(\"✅ Todos los tests pasaron correctamente!\")",
+        "pistas": [
+          {
+            "numero": 1,
+            "titulo": "Estructura básica de validación",
+            "contenido": "Para validar_nota(): usa una expresión con 'and' que verifique si nota >= 0 AND nota <= 100",
+            "penalizacion": 5
+          },
+          {
+            "numero": 2,
+            "titulo": "Orden de las comparaciones",
+            "contenido": "En nota_a_letra(): usa if-elif-else empezando desde el rango más alto (90) hacia abajo. No olvides validar primero con validar_nota().",
+            "penalizacion": 10
+          },
+          {
+            "numero": 3,
+            "titulo": "Cálculo de promedio con validación",
+            "contenido": "En calcular_promedio(): valida las tres notas al inicio. Si todas son válidas, retorna (nota1 + nota2 + nota3) / 3. Si no, retorna -1.",
+            "penalizacion": 15
+          },
+          {
+            "numero": 4,
+            "titulo": "Solución completa de aprobación",
+            "contenido": "La función estudiante_aprobo() es simple: return promedio >= 60. Esta pista te da la solución directa.",
+            "penalizacion": 20
+          }
+        ],
+        "tests_ocultos": [
+          {
+            "descripcion": "Validación de límites exactos",
+            "input": "validar_nota(0), validar_nota(100)",
+            "expected": "True, True"
+          },
+          {
+            "descripcion": "Letras en límites de rangos",
+            "input": "nota_a_letra(90), nota_a_letra(89), nota_a_letra(80)",
+            "expected": "A, B, B"
+          },
+          {
+            "descripcion": "Promedio con decimales",
+            "input": "calcular_promedio(85, 90, 82)",
+            "expected": "85.666..."
+          }
+        ]
+      }
+    },
+    {
+      "id": "secuenciales",
+      "nombre": "Estructuras Secuenciales",
+      "descripcion": "Variables, operaciones matemáticas, entrada/salida",
+      "dificultad": "Muy Fácil",
+      "tiempo_estimado_min": 90,
+      "ejercicios": [
+        {
+          "numero": 1,
+          "consigna": "Crea una función que sume dos números y retorne el resultado.",
+          "codigo_inicial": "def sumar(a, b):\n    # TODO: Retorna la suma de a y b\n    pass",
+          "tests": [
+            {"input": "sumar(2, 3)", "expected": 5},
+            {"input": "sumar(10, 20)", "expected": 30},
+            {"input": "sumar(-5, 5)", "expected": 0}
+          ],
+          "pistas": [
+            "Usa el operador + para sumar a y b",
+            "No olvides usar 'return' para devolver el resultado",
+            "La solución es: return a + b"
+          ]
+        },
+        {
+          "numero": 2,
+          "consigna": "Crea una función que calcule el área de un rectángulo (base * altura).",
+          "codigo_inicial": "def area_rectangulo(base, altura):\n    # TODO: Retorna base * altura\n    pass",
+          "tests": [
+            {"input": "area_rectangulo(5, 3)", "expected": 15},
+            {"input": "area_rectangulo(10, 10)", "expected": 100},
+            {"input": "area_rectangulo(7, 4)", "expected": 28}
+          ],
+          "pistas": [
+            "El área de un rectángulo es base multiplicado por altura",
+            "Usa el operador * para multiplicar",
+            "La solución es: return base * altura"
+          ]
+        },
+        {
+          "numero": 3,
+          "consigna": "Crea una función que convierta grados Celsius a Fahrenheit. Fórmula: (C * 9/5) + 32",
+          "codigo_inicial": "def celsius_a_fahrenheit(celsius):\n    # TODO: Aplica la fórmula de conversión\n    pass",
+          "tests": [
+            {"input": "celsius_a_fahrenheit(0)", "expected": 32},
+            {"input": "celsius_a_fahrenheit(100)", "expected": 212},
+            {"input": "celsius_a_fahrenheit(25)", "expected": 77}
+          ],
+          "pistas": [
+            "Primero multiplica celsius por 9/5",
+            "Luego suma 32 al resultado",
+            "La solución es: return (celsius * 9/5) + 32"
+          ]
+        },
+        {
+          "numero": 4,
+          "consigna": "Crea una función que calcule el promedio de 3 números.",
+          "codigo_inicial": "def promedio_tres(a, b, c):\n    # TODO: Retorna (a + b + c) / 3\n    pass",
+          "tests": [
+            {"input": "promedio_tres(10, 20, 30)", "expected": 20},
+            {"input": "promedio_tres(5, 5, 5)", "expected": 5},
+            {"input": "promedio_tres(8, 7, 9)", "expected": 8}
+          ],
+          "pistas": [
+            "Suma los tres números: a + b + c",
+            "Divide la suma entre 3",
+            "La solución es: return (a + b + c) / 3"
+          ]
+        },
+        {
+          "numero": 5,
+          "consigna": "Crea una función que calcule el perímetro de un círculo. Fórmula: 2 * π * radio (usa 3.14159 para π)",
+          "codigo_inicial": "def perimetro_circulo(radio):\n    # TODO: Retorna 2 * 3.14159 * radio\n    pass",
+          "tests": [
+            {"input": "perimetro_circulo(5)", "expected": 31.4159},
+            {"input": "perimetro_circulo(10)", "expected": 62.8318},
+            {"input": "perimetro_circulo(1)", "expected": 6.28318}
+          ],
+          "pistas": [
+            "Multiplica 2 por 3.14159 (pi)",
+            "Luego multiplica ese resultado por el radio",
+            "La solución es: return 2 * 3.14159 * radio"
+          ]
+        },
+        {
+          "numero": 6,
+          "consigna": "Crea una función que calcule el precio con IVA. Recibe precio base y retorna precio + 21% de IVA.",
+          "codigo_inicial": "def precio_con_iva(precio_base):\n    # TODO: Retorna precio_base * 1.21\n    pass",
+          "tests": [
+            {"input": "precio_con_iva(100)", "expected": 121},
+            {"input": "precio_con_iva(50)", "expected": 60.5},
+            {"input": "precio_con_iva(200)", "expected": 242}
+          ],
+          "pistas": [
+            "El 21% de IVA significa multiplicar por 1.21",
+            "También puedes hacer: precio_base + (precio_base * 0.21)",
+            "La solución más simple es: return precio_base * 1.21"
+          ]
+        },
+        {
+          "numero": 7,
+          "consigna": "Crea una función que convierta horas a segundos (1 hora = 3600 segundos).",
+          "codigo_inicial": "def horas_a_segundos(horas):\n    # TODO: Retorna horas * 3600\n    pass",
+          "tests": [
+            {"input": "horas_a_segundos(1)", "expected": 3600},
+            {"input": "horas_a_segundos(2)", "expected": 7200},
+            {"input": "horas_a_segundos(0.5)", "expected": 1800}
+          ],
+          "pistas": [
+            "1 hora tiene 3600 segundos",
+            "Multiplica las horas por 3600",
+            "La solución es: return horas * 3600"
+          ]
+        },
+        {
+          "numero": 8,
+          "consigna": "Crea una función que calcule la hipotenusa de un triángulo rectángulo. Fórmula: √(a² + b²) - usa a**2 para potencia y ** 0.5 para raíz cuadrada.",
+          "codigo_inicial": "def hipotenusa(a, b):\n    # TODO: Retorna la raíz cuadrada de a² + b²\n    pass",
+          "tests": [
+            {"input": "hipotenusa(3, 4)", "expected": 5},
+            {"input": "hipotenusa(5, 12)", "expected": 13},
+            {"input": "hipotenusa(8, 15)", "expected": 17}
+          ],
+          "pistas": [
+            "Primero calcula a**2 + b**2",
+            "Luego saca la raíz cuadrada con ** 0.5",
+            "La solución es: return (a**2 + b**2) ** 0.5"
+          ]
+        },
+        {
+          "numero": 9,
+          "consigna": "Crea una función que calcule el total a pagar con descuento. Recibe precio y porcentaje_descuento (ej: 20 para 20%). Retorna precio - (precio * descuento / 100).",
+          "codigo_inicial": "def aplicar_descuento(precio, porcentaje_descuento):\n    # TODO: Calcula el descuento y réstalo del precio\n    pass",
+          "tests": [
+            {"input": "aplicar_descuento(100, 10)", "expected": 90},
+            {"input": "aplicar_descuento(200, 25)", "expected": 150},
+            {"input": "aplicar_descuento(50, 50)", "expected": 25}
+          ],
+          "pistas": [
+            "Primero calcula el monto del descuento: precio * porcentaje_descuento / 100",
+            "Luego resta ese monto al precio original",
+            "La solución es: return precio - (precio * porcentaje_descuento / 100)"
+          ]
+        },
+        {
+          "numero": 10,
+          "consigna": "Crea una función que convierta minutos totales a formato 'HH:MM'. Ejemplo: 125 minutos = '2:05'. Usa división entera // y módulo %.",
+          "codigo_inicial": "def minutos_a_formato(minutos_totales):\n    # TODO: Calcula horas = minutos_totales // 60\n    # TODO: Calcula minutos = minutos_totales % 60\n    # TODO: Retorna f'{horas}:{minutos:02d}'\n    pass",
+          "tests": [
+            {"input": "minutos_a_formato(125)", "expected": "2:05"},
+            {"input": "minutos_a_formato(60)", "expected": "1:00"},
+            {"input": "minutos_a_formato(90)", "expected": "1:30"}
+          ],
+          "pistas": [
+            "Usa // para obtener las horas (división entera) y % para los minutos restantes",
+            "Formatea con f-string: f'{horas}:{minutos:02d}' para que los minutos tengan 2 dígitos",
+            "La solución es: horas = minutos_totales // 60; mins = minutos_totales % 60; return f'{horas}:{mins:02d}'"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bucles",
+      "nombre": "Estructuras Repetitivas (Bucles)",
+      "descripcion": "For, while - Repetición de código",
+      "dificultad": "Media",
+      "tiempo_estimado_min": 75,
+      "ejercicio": {
+        "titulo": "Sistema de Inventario con Lotes",
+        "consigna": "Desarrolla un sistema que procese lotes de productos y calcule estadísticas de inventario. El sistema debe iterar sobre listas de productos, aplicar descuentos, y generar reportes.",
+        "contexto": "Trabajas en el sistema de inventario de un supermercado. Necesitas automatizar el procesamiento de productos que llegan en lotes y calcular métricas para el gerente.",
+        "requisitos": [
+          "Función que cuente productos con stock bajo (< 10 unidades)",
+          "Función que calcule el valor total del inventario",
+          "Función que aplique descuento a productos próximos a vencer",
+          "Función que genere lista de productos a reordenar",
+          "Usar bucles for para iterar sobre listas de productos"
+        ],
+        "codigo_inicial": "# Sistema de Inventario con Lotes\n# Programación 1 - Estructuras Repetitivas (Bucles)\n\n# Estructura de un producto: [nombre, precio, stock, dias_para_vencer]\nproductos = [\n    [\"Leche\", 45.50, 8, 5],\n    [\"Pan\", 25.00, 15, 2],\n    [\"Arroz\", 85.00, 3, 90],\n    [\"Aceite\", 120.00, 12, 180],\n    [\"Huevos\", 60.00, 6, 10],\n    [\"Fideos\", 55.00, 20, 365],\n    [\"Azúcar\", 70.00, 9, 730],\n    [\"Café\", 200.00, 2, 60]\n]\n\ndef contar_stock_bajo(lista_productos, limite=10):\n    \"\"\"\n    Cuenta cuántos productos tienen stock por debajo del límite\n    \n    Args:\n        lista_productos (list): Lista de productos\n        limite (int): Umbral de stock bajo (default: 10)\n    \n    Returns:\n        int: Cantidad de productos con stock bajo\n    \n    Ejemplo:\n        contar_stock_bajo(productos, 10) -> 5\n    \"\"\"\n    # TODO: Usar un bucle for para iterar sobre lista_productos\n    # TODO: Comparar el stock (índice 2) con el límite\n    # TODO: Contar los que están por debajo\n    pass\n\ndef valor_total_inventario(lista_productos):\n    \"\"\"\n    Calcula el valor total del inventario (precio * stock de todos los productos)\n    \n    Args:\n        lista_productos (list): Lista de productos\n    \n    Returns:\n        float: Valor total del inventario\n    \n    Ejemplo:\n        Si un producto cuesta $100 y hay 5 unidades, aporta $500 al total\n    \"\"\"\n    # TODO: Usar bucle for para sumar precio * stock de cada producto\n    pass\n\ndef aplicar_descuento_urgente(lista_productos, dias_limite=7, descuento=0.30):\n    \"\"\"\n    Aplica descuento a productos que vencen pronto\n    \n    Args:\n        lista_productos (list): Lista de productos (se modifica in-place)\n        dias_limite (int): Productos que vencen en <= estos días\n        descuento (float): Porcentaje de descuento (0.30 = 30%)\n    \n    Returns:\n        int: Cantidad de productos con descuento aplicado\n    \n    Modifica:\n        El precio de los productos que cumplen la condición\n    \"\"\"\n    # TODO: Iterar sobre productos\n    # TODO: Si dias_para_vencer (índice 3) <= dias_limite:\n    #       Aplicar descuento al precio: precio * (1 - descuento)\n    # TODO: Contar cuántos productos fueron modificados\n    pass\n\ndef productos_a_reordenar(lista_productos, stock_minimo=10):\n    \"\"\"\n    Genera una lista con los nombres de productos que necesitan reorden\n    \n    Args:\n        lista_productos (list): Lista de productos\n        stock_minimo (int): Stock mínimo deseado\n    \n    Returns:\n        list: Lista de nombres de productos a reordenar\n    \n    Ejemplo:\n        [\"Leche\", \"Arroz\", \"Huevos\", \"Azúcar\", \"Café\"]\n    \"\"\"\n    # TODO: Crear lista vacía para nombres\n    # TODO: Iterar y agregar nombres de productos con stock < stock_minimo\n    pass\n\ndef buscar_producto_caro(lista_productos):\n    \"\"\"\n    Encuentra el producto más caro del inventario\n    \n    Returns:\n        str: Nombre del producto más caro\n    \"\"\"\n    # TODO: Usar bucle para encontrar el precio máximo y su producto\n    pass\n\n# NO MODIFICAR - Tests automáticos\nif __name__ == \"__main__\":\n    # Test 1: Contar stock bajo\n    assert contar_stock_bajo(productos, 10) == 5\n    \n    # Test 2: Valor total (antes de descuentos)\n    valor_inicial = valor_total_inventario(productos)\n    assert valor_inicial > 5000  # Verificar que suma bien\n    \n    # Test 3: Aplicar descuentos\n    # Productos con <= 7 días: Pan (2), Leche (5)\n    cantidad_con_descuento = aplicar_descuento_urgente(productos, 7, 0.30)\n    assert cantidad_con_descuento == 2\n    \n    # Test 4: Lista de reorden\n    lista_reorden = productos_a_reordenar(productos, 10)\n    assert len(lista_reorden) == 5\n    assert \"Leche\" in lista_reorden\n    \n    # Test 5: Producto más caro\n    mas_caro = buscar_producto_caro(productos)\n    assert mas_caro == \"Café\" or mas_caro == \"Aceite\"  # Depende de descuentos\n    \n    print(\"✅ Todos los tests pasaron!\")",
+        "pistas": [
+          {
+            "numero": 1,
+            "titulo": "Estructura básica de bucle for",
+            "contenido": "Para contar_stock_bajo(): usa contador = 0, luego for producto in lista_productos: if producto[2] < limite: contador += 1",
+            "penalizacion": 5
+          },
+          {
+            "numero": 2,
+            "titulo": "Acumulador en bucle",
+            "contenido": "Para valor_total_inventario(): usa total = 0, luego for producto in lista_productos: total += producto[1] * producto[2]",
+            "penalizacion": 10
+          },
+          {
+            "numero": 3,
+            "titulo": "Modificar elementos en bucle",
+            "contenido": "Para aplicar_descuento_urgente(): usa for i in range(len(lista_productos)): if lista_productos[i][3] <= dias_limite: lista_productos[i][1] *= (1 - descuento)",
+            "penalizacion": 15
+          },
+          {
+            "numero": 4,
+            "titulo": "Solución completa de reorden",
+            "contenido": "productos_a_reordenar(): nombres = []; for p in lista_productos: if p[2] < stock_minimo: nombres.append(p[0]); return nombres",
+            "penalizacion": 20
+          }
+        ],
+        "tests_ocultos": [
+          {
+            "descripcion": "Descuento aplicado correctamente",
+            "input": "productos después de aplicar_descuento_urgente()",
+            "expected": "Pan y Leche deben tener precio reducido en 30%"
+          }
+        ]
+      }
+    },
+    {
+      "id": "funciones",
+      "nombre": "Funciones y Modularización",
+      "descripcion": "Definir y usar funciones, parámetros, return",
+      "dificultad": "Media",
+      "tiempo_estimado_min": 60,
+      "ejercicio": {
+        "titulo": "Biblioteca de Utilidades Matemáticas",
+        "consigna": "Crea una biblioteca de funciones matemáticas reutilizables para una aplicación científica. Cada función debe ser independiente, documentada y con manejo de casos especiales.",
+        "contexto": "Eres desarrollador en un equipo de data science. Necesitan funciones matemáticas comunes que puedan reutilizarse en múltiples proyectos.",
+        "requisitos": [
+          "Función que calcule el factorial de un número",
+          "Función que determine si un número es primo",
+          "Función que calcule el máximo común divisor (MCD)",
+          "Función que genere la serie de Fibonacci hasta n términos",
+          "Todas las funciones deben validar entradas y manejar errores"
+        ],
+        "codigo_inicial": "# Biblioteca de Utilidades Matemáticas\n# Programación 1 - Funciones y Modularización\n\ndef factorial(n):\n    \"\"\"\n    Calcula el factorial de un número entero no negativo\n    \n    Args:\n        n (int): Número del cual calcular el factorial\n    \n    Returns:\n        int: El factorial de n, o -1 si n es inválido\n    \n    Ejemplos:\n        factorial(5) -> 120\n        factorial(0) -> 1\n        factorial(-3) -> -1\n    \"\"\"\n    # TODO: Validar que n sea >= 0\n    # TODO: Calcular factorial usando bucle o recursión\n    pass\n\ndef es_primo(n):\n    \"\"\"\n    Determina si un número es primo\n    \n    Args:\n        n (int): Número a verificar\n    \n    Returns:\n        bool: True si es primo, False en caso contrario\n    \n    Ejemplos:\n        es_primo(7) -> True\n        es_primo(10) -> False\n        es_primo(2) -> True\n    \"\"\"\n    # TODO: Validar que n > 1\n    # TODO: Verificar divisibilidad desde 2 hasta sqrt(n)\n    pass\n\ndef mcd(a, b):\n    \"\"\"\n    Calcula el Máximo Común Divisor usando el algoritmo de Euclides\n    \n    Args:\n        a (int): Primer número\n        b (int): Segundo número\n    \n    Returns:\n        int: El MCD de a y b\n    \n    Ejemplos:\n        mcd(48, 18) -> 6\n        mcd(100, 50) -> 50\n    \"\"\"\n    # TODO: Implementar algoritmo de Euclides\n    # Pista: while b != 0: a, b = b, a % b\n    pass\n\ndef fibonacci(n):\n    \"\"\"\n    Genera los primeros n términos de la serie de Fibonacci\n    \n    Args:\n        n (int): Cantidad de términos a generar\n    \n    Returns:\n        list: Lista con los n primeros términos de Fibonacci\n    \n    Ejemplos:\n        fibonacci(7) -> [0, 1, 1, 2, 3, 5, 8]\n        fibonacci(1) -> [0]\n    \"\"\"\n    # TODO: Validar que n > 0\n    # TODO: Generar serie [0, 1, 1, 2, 3, 5, 8, ...]\n    pass\n\ndef potencia(base, exponente):\n    \"\"\"\n    Calcula base^exponente sin usar ** ni pow()\n    \n    Args:\n        base (float): La base\n        exponente (int): El exponente (debe ser >= 0)\n    \n    Returns:\n        float: El resultado de base^exponente\n    \n    Ejemplos:\n        potencia(2, 3) -> 8\n        potencia(5, 0) -> 1\n    \"\"\"\n    # TODO: Usar bucle para multiplicar base por sí misma exponente veces\n    pass\n\n# NO MODIFICAR - Tests automáticos\nif __name__ == \"__main__\":\n    # Test 1: Factorial\n    assert factorial(5) == 120\n    assert factorial(0) == 1\n    assert factorial(3) == 6\n    assert factorial(-1) == -1\n    \n    # Test 2: Primos\n    assert es_primo(2) == True\n    assert es_primo(17) == True\n    assert es_primo(20) == False\n    assert es_primo(1) == False\n    \n    # Test 3: MCD\n    assert mcd(48, 18) == 6\n    assert mcd(100, 50) == 50\n    assert mcd(7, 13) == 1\n    \n    # Test 4: Fibonacci\n    fib = fibonacci(7)\n    assert len(fib) == 7\n    assert fib == [0, 1, 1, 2, 3, 5, 8]\n    \n    # Test 5: Potencia\n    assert potencia(2, 3) == 8\n    assert potencia(5, 0) == 1\n    assert potencia(10, 2) == 100\n    \n    print(\"✅ Todos los tests pasaron!\")",
+        "pistas": [
+          {
+            "numero": 1,
+            "titulo": "Factorial con bucle",
+            "contenido": "factorial(n): if n < 0: return -1; resultado = 1; for i in range(1, n+1): resultado *= i; return resultado",
+            "penalizacion": 5
+          },
+          {
+            "numero": 2,
+            "titulo": "Verificar primo",
+            "contenido": "es_primo(n): if n <= 1: return False; for i in range(2, int(n**0.5)+1): if n % i == 0: return False; return True",
+            "penalizacion": 10
+          },
+          {
+            "numero": 3,
+            "titulo": "Algoritmo de Euclides para MCD",
+            "contenido": "mcd(a, b): while b != 0: temp = b; b = a % b; a = temp; return abs(a)",
+            "penalizacion": 15
+          },
+          {
+            "numero": 4,
+            "titulo": "Solución completa de Fibonacci",
+            "contenido": "fibonacci(n): if n <= 0: return []; if n == 1: return [0]; fib = [0, 1]; while len(fib) < n: fib.append(fib[-1] + fib[-2]); return fib",
+            "penalizacion": 20
+          }
+        ],
+        "tests_ocultos": [
+          {
+            "descripcion": "Factorial de números grandes",
+            "input": "factorial(10)",
+            "expected": "3628800"
+          }
+        ]
+      }
+    },
+    {
+      "id": "listas-arrays",
+      "nombre": "Listas y Arrays",
+      "descripcion": "Manipulación de listas, métodos, slicing",
+      "dificultad": "Media",
+      "tiempo_estimado_min": 60,
+      "ejercicio": {
+        "titulo": "Procesador de Datos de Sensores",
+        "consigna": "Desarrolla un sistema que procese datos de sensores almacenados en listas. Debe limpiar datos, calcular estadísticas y detectar anomalías.",
+        "contexto": "Trabajas en IoT (Internet of Things) procesando lecturas de sensores de temperatura. Los datos vienen con ruido y valores atípicos que deben filtrarse.",
+        "requisitos": [
+          "Función que elimine valores None de una lista",
+          "Función que calcule promedio, mínimo y máximo",
+          "Función que detecte valores atípicos (outliers)",
+          "Función que ordene y agrupe datos por rangos",
+          "Manipulación avanzada de listas"
+        ],
+        "codigo_inicial": "# Procesador de Datos de Sensores\n# Programación 1 - Listas y Arrays\n\n# Lecturas de temperatura de 24 horas (algunas con errores)\nlecturas = [22.5, None, 23.1, 24.0, None, 22.8, 23.5, 45.0, 21.9, 22.3,\n            23.0, None, 22.7, 24.1, 23.8, 22.5, 23.2, -10.0, 23.9, 22.1,\n            None, 23.4, 22.9, 23.6]\n\ndef limpiar_datos(lista_lecturas):\n    \"\"\"\n    Elimina valores None de la lista de lecturas\n    \n    Args:\n        lista_lecturas (list): Lista con lecturas y posibles None\n    \n    Returns:\n        list: Nueva lista sin valores None\n    \n    Ejemplo:\n        limpiar_datos([1, None, 3, None]) -> [1, 3]\n    \"\"\"\n    # TODO: Crear nueva lista sin None\n    # Pista: Usar list comprehension o bucle\n    pass\n\ndef calcular_estadisticas(lista_valores):\n    \"\"\"\n    Calcula estadísticas básicas de una lista de números\n    \n    Args:\n        lista_valores (list): Lista de números\n    \n    Returns:\n        dict: {'promedio': float, 'minimo': float, 'maximo': float}\n    \n    Ejemplo:\n        calcular_estadisticas([1, 2, 3, 4, 5])\n        -> {'promedio': 3.0, 'minimo': 1, 'maximo': 5}\n    \"\"\"\n    # TODO: Calcular promedio, mínimo y máximo\n    pass\n\ndef detectar_outliers(lista_valores, desviacion=5.0):\n    \"\"\"\n    Detecta valores atípicos que se alejan mucho del promedio\n    \n    Args:\n        lista_valores (list): Lista de números\n        desviacion (float): Distancia máxima aceptable del promedio\n    \n    Returns:\n        list: Lista con los valores atípicos encontrados\n    \n    Ejemplo:\n        detectar_outliers([20, 21, 22, 50, 21]) -> [50]\n    \"\"\"\n    # TODO: Calcular promedio\n    # TODO: Encontrar valores donde abs(valor - promedio) > desviacion\n    pass\n\ndef filtrar_rango_normal(lista_valores, min_temp=15.0, max_temp=30.0):\n    \"\"\"\n    Filtra valores que están dentro de un rango normal\n    \n    Args:\n        lista_valores (list): Lista de temperaturas\n        min_temp (float): Temperatura mínima aceptable\n        max_temp (float): Temperatura máxima aceptable\n    \n    Returns:\n        list: Lista con solo valores en el rango [min_temp, max_temp]\n    \"\"\"\n    # TODO: Filtrar valores dentro del rango\n    pass\n\ndef ordenar_y_agrupar(lista_valores):\n    \"\"\"\n    Ordena valores y los agrupa en categorías\n    \n    Returns:\n        dict: {'frio': list, 'normal': list, 'calor': list}\n              frio: < 20°C, normal: 20-25°C, calor: > 25°C\n    \"\"\"\n    # TODO: Ordenar lista\n    # TODO: Clasificar en tres grupos según temperatura\n    pass\n\ndef top_n_valores(lista_valores, n=5, mayor_a_menor=True):\n    \"\"\"\n    Obtiene los top N valores más altos o más bajos\n    \n    Args:\n        lista_valores (list): Lista de números\n        n (int): Cantidad de valores a retornar\n        mayor_a_menor (bool): True para mayores, False para menores\n    \n    Returns:\n        list: Los top N valores\n    \"\"\"\n    # TODO: Ordenar y tomar los primeros n\n    pass\n\n# NO MODIFICAR - Tests automáticos\nif __name__ == \"__main__\":\n    # Test 1: Limpiar datos\n    datos_limpios = limpiar_datos(lecturas)\n    assert None not in datos_limpios\n    assert len(datos_limpios) == 20  # 24 - 4 None\n    \n    # Test 2: Estadísticas básicas\n    stats = calcular_estadisticas(datos_limpios)\n    assert 'promedio' in stats\n    assert 'minimo' in stats\n    assert 'maximo' in stats\n    \n    # Test 3: Detectar outliers\n    outliers = detectar_outliers(datos_limpios, 5.0)\n    assert 45.0 in outliers  # Temperatura anómala alta\n    assert -10.0 in outliers  # Temperatura anómala baja\n    \n    # Test 4: Filtrar rango normal\n    normales = filtrar_rango_normal(datos_limpios, 15.0, 30.0)\n    assert 45.0 not in normales\n    assert -10.0 not in normales\n    \n    # Test 5: Ordenar y agrupar\n    grupos = ordenar_y_agrupar(normales)\n    assert 'frio' in grupos\n    assert 'normal' in grupos\n    assert 'calor' in grupos\n    \n    # Test 6: Top valores\n    top_3_altas = top_n_valores(normales, 3, True)\n    assert len(top_3_altas) == 3\n    assert top_3_altas[0] >= top_3_altas[1]  # Verificar orden\n    \n    print(\"✅ Todos los tests pasaron!\")",
+        "pistas": [
+          {
+            "numero": 1,
+            "titulo": "Filtrar None con list comprehension",
+            "contenido": "limpiar_datos(): return [x for x in lista_lecturas if x is not None]",
+            "penalizacion": 5
+          },
+          {
+            "numero": 2,
+            "titulo": "Estadísticas con funciones built-in",
+            "contenido": "calcular_estadisticas(): promedio = sum(lista_valores) / len(lista_valores); return {'promedio': promedio, 'minimo': min(lista_valores), 'maximo': max(lista_valores)}",
+            "penalizacion": 10
+          },
+          {
+            "numero": 3,
+            "titulo": "Detectar outliers paso a paso",
+            "contenido": "detectar_outliers(): prom = sum(lista_valores) / len(lista_valores); return [v for v in lista_valores if abs(v - prom) > desviacion]",
+            "penalizacion": 15
+          },
+          {
+            "numero": 4,
+            "titulo": "Solución completa de agrupación",
+            "contenido": "ordenar_y_agrupar(): ordenados = sorted(lista_valores); return {'frio': [v for v in ordenados if v < 20], 'normal': [v for v in ordenados if 20 <= v <= 25], 'calor': [v for v in ordenados if v > 25]}",
+            "penalizacion": 20
+          }
+        ],
+        "tests_ocultos": [
+          {
+            "descripcion": "Manejo de listas vacías",
+            "input": "calcular_estadisticas([])",
+            "expected": "Debe manejar el error o retornar valores especiales"
+          }
+        ]
+      }
+    }
+  ]
+}

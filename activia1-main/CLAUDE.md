@@ -14,6 +14,42 @@ AI-Native MVP for teaching-learning programming with generative AI. Doctoral the
 
 **Integrated Agent Documentation**: See `docs/Misagentes/integrador.md` for comprehensive multi-agent system documentation (all 6 agents, workflows, DB persistence, collaboration patterns).
 
+## ✅ COMPLETED: Exercises JSON → PostgreSQL Migration
+
+**Status**: 🟢 75% Complete (Phases 1-4 done, 5-6 pending)
+
+The exercises migration from JSON to PostgreSQL is **functionally complete**. All core functionality is operational.
+
+**Essential Documents**:
+- **Full Plan**: `docs/plans/migracion-ejercicios-db.md` (42/56 tasks completed)
+
+**✅ Completed Phases**:
+- ✅ **FASE 1**: Database models and migrations (7 tables created)
+- ✅ **FASE 2**: Pydantic schemas and repositories (all 7 repositories implemented)
+- ✅ **FASE 3**: Seed database (23 exercises, 2 subjects loaded)
+- ✅ **FASE 4**: API endpoints updated (all 6 endpoints migrated)
+
+**⏳ Remaining Work** (non-blocking):
+- ⬜ **FASE 5**: Integration tests (optional)
+- ⬜ **FASE 6**: Code cleanup and legacy removal (optional)
+
+**Migration Results**:
+- ✅ 7 database tables: `subjects`, `exercises`, `exercise_hints`, `exercise_tests`, `exercise_attempts`, `exercise_rubric_criteria`, `rubric_levels`
+- ✅ 23 exercises migrated from 8 JSON files
+- ✅ All tests and hints associated correctly
+- ✅ Student attempts now persist to database for N4 traceability
+- ✅ Exercise analytics enabled (success rates, attempt tracking)
+
+**Updated Endpoints** (all in `/training/*`):
+- `GET /training/materias` - Reads from `subjects` and `exercises` tables
+- `POST /training/iniciar` - Loads exercise with hints/tests from DB
+- `POST /training/submit-ejercicio` - **Saves attempts to `exercise_attempts`**
+- `POST /training/pista` - Uses hints from DB, tracks usage
+- `POST /training/corregir-ia` - Uses tests from DB for AI feedback
+- `GET /training/exercises/{id}/details` - Admin debugging endpoint (new)
+
+See `docs/plans/migracion-ejercicios-db.md` for full details.
+
 ## Quick Reference
 
 ```bash

@@ -1,0 +1,92 @@
+[
+  {
+    "id": "U5-OOP-01",
+    "meta": {
+      "title": "POO: Sistema de Biblioteca",
+      "difficulty": "Hard",
+      "estimated_time_min": 45,
+      "tags": ["POO", "Clases", "Encapsulación"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "# Define las clases..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **Software Architect** diseñando un sistema de gestión de biblioteca.\n\n**Requerimientos:**\n- Cada **Libro** tiene: título, autor, ISBN, disponible (bool)\n- La **Biblioteca** puede: agregar libros, prestar, devolver, buscar\n- Un **Usuario** puede tener hasta **3 libros** prestados simultáneamente",
+      "mission_markdown": "### Tu Misión\n\n1. Clase `Libro` con constructor y método `__str__`\n2. Clase `Usuario` con lista de libros prestados\n3. Clase `Biblioteca` con:\n   - `agregar_libro(libro)`\n   - `prestar_libro(isbn, usuario)` → retorna True/False\n   - `devolver_libro(isbn, usuario)` → retorna True/False\n   - `buscar_por_autor(autor)` → lista de libros",
+      "constraints": [
+        "Usa atributos privados (__nombre) donde corresponda",
+        "Valida que el usuario no exceda 3 libros",
+        "Maneja casos donde el libro no está disponible"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTA LÍNEA\n\nclass Libro:\n    def __init__(self, titulo, autor, isbn):\n        \"\"\"Inicializa un libro.\"\"\"\n        # TODO: Define atributos\n        self.titulo = titulo\n        self.autor = autor\n        self.isbn = isbn\n        self.disponible = True\n    \n    def __str__(self):\n        \"\"\"Representación en string.\"\"\"\n        estado = \"Disponible\" if self.disponible else \"Prestado\"\n        return f\"{self.titulo} por {self.autor} ({estado})\"\n\nclass Usuario:\n    def __init__(self, nombre, user_id):\n        \"\"\"Inicializa un usuario.\"\"\"\n        self.nombre = nombre\n        self.user_id = user_id\n        self.libros_prestados = []  # Máximo 3\n    \n    def puede_prestar(self):\n        \"\"\"Verifica si puede pedir más libros.\"\"\"\n        # TODO: Implementa la validación\n        return len(self.libros_prestados) < 3\n\nclass Biblioteca:\n    def __init__(self, nombre):\n        \"\"\"Inicializa la biblioteca.\"\"\"\n        self.nombre = nombre\n        self.__catalogo = []  # Privado\n    \n    def agregar_libro(self, libro):\n        \"\"\"Agrega un libro al catálogo.\"\"\"\n        # TODO: Implementa\n        pass\n    \n    def prestar_libro(self, isbn, usuario):\n        \"\"\"Presta un libro a un usuario.\"\"\"\n        # TODO: Busca el libro por ISBN\n        # TODO: Verifica disponibilidad\n        # TODO: Verifica límite del usuario\n        # TODO: Actualiza estados\n        pass\n    \n    def devolver_libro(self, isbn, usuario):\n        \"\"\"Devuelve un libro.\"\"\"\n        # TODO: Implementa la devolución\n        pass\n    \n    def buscar_por_autor(self, autor):\n        \"\"\"Busca libros por autor.\"\"\"\n        # TODO: Filtra por autor\n        return []\n\n# Prueba\nbiblioteca = Biblioteca(\"Biblioteca Central\")\nlibro1 = Libro(\"Clean Code\", \"Robert Martin\", \"978-0132350884\")\nlibro2 = Libro(\"Python Crash Course\", \"Eric Matthes\", \"978-1593279288\")\n\nbiblioteca.agregar_libro(libro1)\nbiblioteca.agregar_libro(libro2)\n\nusuario = Usuario(\"Ana García\", \"U001\")\nexito = biblioteca.prestar_libro(\"978-0132350884\", usuario)\nprint(f\"Préstamo exitoso: {exito}\")",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "exito == True and not libro1.disponible"
+      }
+    ]
+  },
+  {
+    "id": "U5-INHERIT-01",
+    "meta": {
+      "title": "Herencia: Jerarquía de Empleados",
+      "difficulty": "Medium",
+      "estimated_time_min": 35,
+      "tags": ["Herencia", "Polimorfismo", "POO"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "# Define la jerarquía..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **HR Tech Developer** creando un sistema de nómina.\n\n**Jerarquía:**\n- **Empleado** (clase base): nombre, id, salario_base\n- **EmpleadoTiempoCompleto**: salario_base + bono anual\n- **EmpleadoMedioTiempo**: salario_base × horas_trabajadas\n- **Contratista**: tarifa_hora × horas_facturadas",
+      "mission_markdown": "### Tu Misión\n\n1. Clase base `Empleado` con `__init__` y método abstracto `calcular_pago()`\n2. Clases derivadas que sobrescriban `calcular_pago()`\n3. Método `generar_recibo()` en clase base (usa calcular_pago)\n4. Lista de empleados mixtos y calcula nómina total",
+      "constraints": [
+        "Usa super() en constructores de clases derivadas",
+        "El método calcular_pago() debe ser abstracto",
+        "Todas las clases deben tener __str__"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTA LÍNEA\n\nclass Empleado:\n    \"\"\"Clase base para empleados.\"\"\"\n    \n    def __init__(self, nombre, emp_id, salario_base):\n        self.nombre = nombre\n        self.emp_id = emp_id\n        self.salario_base = salario_base\n    \n    def calcular_pago(self):\n        \"\"\"Método abstracto - debe ser sobrescrito.\"\"\"\n        raise NotImplementedError(\"Debe implementarse en subclase\")\n    \n    def generar_recibo(self):\n        \"\"\"Genera un recibo de pago.\"\"\"\n        pago = self.calcular_pago()\n        return f\"Recibo para {self.nombre}: ${pago:.2f}\"\n\nclass EmpleadoTiempoCompleto(Empleado):\n    def __init__(self, nombre, emp_id, salario_base, bono_anual):\n        # TODO: Usa super()\n        super().__init__(nombre, emp_id, salario_base)\n        self.bono_anual = bono_anual\n    \n    def calcular_pago(self):\n        \"\"\"Salario base + bono.\"\"\"\n        # TODO: Implementa\n        return 0.0\n\nclass EmpleadoMedioTiempo(Empleado):\n    def __init__(self, nombre, emp_id, tarifa_hora, horas_trabajadas):\n        # TODO: Inicializa (salario_base = tarifa_hora)\n        super().__init__(nombre, emp_id, tarifa_hora)\n        self.horas_trabajadas = horas_trabajadas\n    \n    def calcular_pago(self):\n        \"\"\"Tarifa × horas.\"\"\"\n        # TODO: Implementa\n        return 0.0\n\nclass Contratista(Empleado):\n    def __init__(self, nombre, emp_id, tarifa_hora, horas_facturadas):\n        super().__init__(nombre, emp_id, tarifa_hora)\n        self.horas_facturadas = horas_facturadas\n    \n    def calcular_pago(self):\n        \"\"\"Tarifa × horas (sin beneficios).\"\"\"\n        # TODO: Implementa\n        return 0.0\n\n# Prueba\nempleados = [\n    EmpleadoTiempoCompleto(\"Ana\", \"E001\", 5000, 1000),\n    EmpleadoMedioTiempo(\"Carlos\", \"E002\", 25, 80),\n    Contratista(\"Elena\", \"C001\", 50, 40)\n]\n\nnomina_total = sum(emp.calcular_pago() for emp in empleados)\nprint(f\"Nómina Total: ${nomina_total:.2f}\")\n\nfor emp in empleados:\n    print(emp.generar_recibo())",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "nomina_total == 10000.0"
+      }
+    ]
+  },
+  {
+    "id": "U5-COMP-01",
+    "meta": {
+      "title": "Composición: Sistema de Pedidos",
+      "difficulty": "Hard",
+      "estimated_time_min": 40,
+      "tags": ["Composición", "Agregación", "POO"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "# Usa composición..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **E-commerce Developer**. Un **Pedido** se compone de múltiples **Items**, y cada Item tiene un **Producto**.\n\n**Relaciones:**\n```\nPedido\n ├── Item 1 (cantidad, Producto)\n ├── Item 2 (cantidad, Producto)\n └── Item 3 (cantidad, Producto)\n```",
+      "mission_markdown": "### Tu Misión\n\n1. Clase `Producto`: nombre, precio, stock\n2. Clase `ItemPedido`: producto, cantidad, método `subtotal()`\n3. Clase `Pedido`: lista de items, métodos:\n   - `agregar_item(producto, cantidad)`\n   - `calcular_total()`\n   - `aplicar_descuento(porcentaje)`\n   - `generar_factura()`",
+      "constraints": [
+        "Validar stock disponible al agregar item",
+        "Descuento entre 0-100%",
+        "La factura debe mostrar cada item + total"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTA LÍNEA\n\nclass Producto:\n    def __init__(self, nombre, precio, stock):\n        self.nombre = nombre\n        self.precio = precio\n        self.stock = stock\n    \n    def reducir_stock(self, cantidad):\n        \"\"\"Reduce el stock si hay suficiente.\"\"\"\n        if self.stock >= cantidad:\n            self.stock -= cantidad\n            return True\n        return False\n\nclass ItemPedido:\n    def __init__(self, producto, cantidad):\n        self.producto = producto\n        self.cantidad = cantidad\n    \n    def subtotal(self):\n        \"\"\"Calcula el subtotal del item.\"\"\"\n        # TODO: precio × cantidad\n        return 0.0\n    \n    def __str__(self):\n        return f\"{self.producto.nombre} x{self.cantidad} = ${self.subtotal():.2f}\"\n\nclass Pedido:\n    def __init__(self, pedido_id):\n        self.pedido_id = pedido_id\n        self.items = []\n        self.descuento = 0.0\n    \n    def agregar_item(self, producto, cantidad):\n        \"\"\"Agrega un item al pedido.\"\"\"\n        # TODO: Verifica stock\n        # TODO: Reduce stock\n        # TODO: Crea ItemPedido y agrega a lista\n        pass\n    \n    def calcular_total(self):\n        \"\"\"Calcula el total con descuento.\"\"\"\n        # TODO: Suma subtotales\n        subtotal = 0.0\n        # TODO: Aplica descuento\n        total = subtotal * (1 - self.descuento / 100)\n        return total\n    \n    def aplicar_descuento(self, porcentaje):\n        \"\"\"Aplica un descuento porcentual.\"\"\"\n        if 0 <= porcentaje <= 100:\n            self.descuento = porcentaje\n            return True\n        return False\n    \n    def generar_factura(self):\n        \"\"\"Genera la factura del pedido.\"\"\"\n        factura = f\"\\n=== FACTURA #{self.pedido_id} ===\\n\"\n        for item in self.items:\n            factura += f\"{item}\\n\"\n        factura += f\"\\nDescuento: {self.descuento}%\\n\"\n        factura += f\"TOTAL: ${self.calcular_total():.2f}\\n\"\n        return factura\n\n# Prueba\np1 = Producto(\"Laptop\", 1200, 10)\np2 = Producto(\"Mouse\", 25, 50)\n\npedido = Pedido(\"PED-001\")\npedido.agregar_item(p1, 2)\npedido.agregar_item(p2, 3)\npedido.aplicar_descuento(10)\n\nprint(pedido.generar_factura())",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "pedido.calcular_total() == 2227.50"
+      }
+    ]
+  }
+]

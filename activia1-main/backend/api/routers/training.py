@@ -23,10 +23,17 @@ import os
 
 from backend.database.config import get_db
 from backend.api.routers.auth_new import get_current_user
-from backend.database.models import UserDB as User
-from backend.api.deps import get_llm_provider
+from backend.database.models import UserDB as User, ExerciseAttemptDB
+from backend.api.deps import get_llm_provider, require_teacher_role
 from backend.llm.base import LLMMessage, LLMRole
 from backend.services.code_evaluator import CodeEvaluator
+from backend.database.repositories import (
+    SubjectRepository,
+    ExerciseRepository,
+    ExerciseHintRepository,
+    ExerciseTestRepository,
+    ExerciseAttemptRepository
+)
 
 logger = logging.getLogger(__name__)
 
@@ -254,108 +261,53 @@ def obtener_tema(codigo_materia: str, tema_id: str) -> Optional[Dict[str, Any]]:
 # ============================================================================
 
 @router.get("/materias", response_model=List[MateriaInfo])
-async def obtener_materias_disponibles():
+async def obtener_materias_disponibles(db: Session = Depends(get_db)):
     """
-    Obtiene la lista de materias disponibles con sus temas
-    Devuelve Python (unidades 1-5) y Java (unidades 6-7)
+    Obtiene la lista de materias disponibles con sus temas desde la base de datos
+    Devuelve Python (PROG1) y Java (PROG2) con todos sus ejercicios activos
+
+    FASE 4.1 - MIGRADO: Ahora lee desde PostgreSQL en lugar de archivos JSON
     """
     try:
+        subject_repo = SubjectRepository(db)
+        exercise_repo = ExerciseRepository(db)
+
         materias = []
 
-        # Cargar catalog.json para obtener las unidades de Python y Java
-        catalog_path = Path(__file__).parent.parent.parent / "data" / "exercises" / "catalog.json"
+        # Obtener todas las materias activas
+        subjects = subject_repo.get_all(active_only=True)
 
-        if catalog_path.exists():
-            with open(catalog_path, 'r', encoding='utf-8') as f:
-                catalog = json.load(f)
+        for subject in subjects:
+            # Obtener ejercicios de esta materia
+            exercises = exercise_repo.get_by_subject(subject.code)
 
-            # PYTHON - Unidades 1-5
-            python_units = [u for u in catalog['catalog']['units'] if u['unit'] <= 5]
-            python_temas = []
-
-            for unit in python_units:
-                for exercise in unit['exercises']:
-                    python_temas.append(TemaInfo(
-                        id=exercise['id'],
-                        nombre=exercise['title'],
-                        descripcion=exercise['description'],
-                        dificultad=exercise['difficulty'],
-                        tiempo_estimado_min=exercise['time_min']
-                    ))
-
-            if python_temas:
-                materias.append(MateriaInfo(
-                    materia="Python",
-                    codigo="PYTHON",
-                    temas=python_temas
+            # Convertir ejercicios a TemaInfo
+            temas_info = []
+            for exercise in exercises:
+                temas_info.append(TemaInfo(
+                    id=exercise.id,
+                    nombre=exercise.title,
+                    descripcion=exercise.description[:100] + "..." if len(exercise.description or "") > 100 else (exercise.description or ""),
+                    dificultad=exercise.difficulty,
+                    tiempo_estimado_min=exercise.time_min
                 ))
 
-            # JAVA - Leer desde archivos unit6 y unit7
-            exercises_path = Path(__file__).parent.parent.parent / "data" / "exercises"
-            java_temas = []
-
-            # Unit 6: Java Fundamentals
-            unit6_path = exercises_path / "unit6_java_fundamentals.json"
-            if unit6_path.exists():
-                with open(unit6_path, 'r', encoding='utf-8') as f:
-                    unit6_exercises = json.load(f)
-                for exercise in unit6_exercises:
-                    java_temas.append(TemaInfo(
-                        id=exercise['id'],
-                        nombre=exercise['meta']['title'],
-                        descripcion=exercise['content']['story_markdown'][:100] + "...",
-                        dificultad=exercise['meta']['difficulty'],
-                        tiempo_estimado_min=exercise['meta']['estimated_time_min']
-                    ))
-
-            # Unit 7: Spring Boot
-            unit7_path = exercises_path / "unit7_springboot.json"
-            if unit7_path.exists():
-                with open(unit7_path, 'r', encoding='utf-8') as f:
-                    unit7_exercises = json.load(f)
-                for exercise in unit7_exercises:
-                    java_temas.append(TemaInfo(
-                        id=exercise['id'],
-                        nombre=exercise['meta']['title'],
-                        descripcion=exercise['content']['story_markdown'][:100] + "...",
-                        dificultad=exercise['meta']['difficulty'],
-                        tiempo_estimado_min=exercise['meta']['estimated_time_min']
-                    ))
-
-            if java_temas:
-                materias.append(MateriaInfo(
-                    materia="Java",
-                    codigo="JAVA",
-                    temas=java_temas
-                ))
-
-        # Fallback: intentar cargar desde programacion1_temas.json si catalog no existe
-        if not materias:
-            try:
-                datos_prog1 = cargar_materia_datos("PROG1")
-
-                temas_info = []
-                for tema in datos_prog1['temas']:
-                    temas_info.append(TemaInfo(
-                        id=tema['id'],
-                        nombre=tema['nombre'],
-                        descripcion=tema['descripcion'],
-                        dificultad=tema['dificultad'],
-                        tiempo_estimado_min=tema['tiempo_estimado_min']
-                    ))
+            if temas_info:  # Solo agregar si tiene ejercicios
+                # Mapear nombres de materias para mantener compatibilidad
+                nombre_materia = "Python" if subject.code == "PROG1" else "Java" if subject.code == "PROG2" else subject.name
+                codigo_materia = "PYTHON" if subject.code == "PROG1" else "JAVA" if subject.code == "PROG2" else subject.code
 
                 materias.append(MateriaInfo(
-                    materia=datos_prog1['materia'],
-                    codigo=datos_prog1['codigo'],
+                    materia=nombre_materia,
+                    codigo=codigo_materia,
                     temas=temas_info
                 ))
-            except Exception as e:
-                logger.warning(f"No se pudo cargar Programación 1: {e}")
 
+        logger.info(f"✅ Loaded {len(materias)} materias with {sum(len(m.temas) for m in materias)} exercises from database")
         return materias
 
     except Exception as e:
-        logger.error(f"Error obteniendo materias: {e}", exc_info=True)
+        logger.error(f"Error obteniendo materias desde BD: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Error al cargar las materias disponibles"
@@ -365,62 +317,73 @@ async def obtener_materias_disponibles():
 @router.post("/iniciar", response_model=SesionEntrenamiento)
 async def iniciar_entrenamiento(
     request: IniciarEntrenamientoRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Inicia una nueva sesión de entrenamiento con múltiples ejercicios
-    Soporta tanto ejercicios del catálogo JSON como temas antiguos
+
+    FASE 4.2 - MIGRADO: Lee ejercicios, pistas y tests desde base de datos PostgreSQL
     """
     try:
-        # NUEVO: Importar ExerciseLoader para cargar ejercicios del catálogo
-        from backend.data.exercises.loader import ExerciseLoader
-        
-        loader = ExerciseLoader()
-        
-        # Intentar cargar ejercicio del catálogo JSON primero
-        exercise = loader.get_by_id(request.tema_id)
-        
+        # Repositorios
+        exercise_repo = ExerciseRepository(db)
+        hint_repo = ExerciseHintRepository(db)
+        test_repo = ExerciseTestRepository(db)
+
+        # Cargar ejercicio desde base de datos
+        exercise = exercise_repo.get_by_id(request.tema_id)
+
         if exercise:
-            # Es un ejercicio del catálogo JSON
-            logger.info(f"✅ Ejercicio encontrado en catálogo: {request.tema_id}")
-            
-            # Adaptar formato del ejercicio JSON al formato de training
+            # Ejercicio encontrado en base de datos
+            logger.info(f"✅ Ejercicio encontrado en BD: {request.tema_id}")
+
+            # Cargar hints y tests desde BD
+            hints = hint_repo.get_by_exercise(request.tema_id)
+            tests = test_repo.get_by_exercise(request.tema_id)
+
+            # Adaptar formato de hints y tests para la sesión
+            pistas_adaptadas = [hint.content for hint in sorted(hints, key=lambda h: h.hint_number)]
+            tests_adaptados = [
+                {
+                    'input': test.input,
+                    'expected': test.expected  # FIX: El campo se llama 'expected' no 'expected_output'
+                }
+                for test in sorted(tests, key=lambda t: t.test_number)
+            ]
+
+            # Crear estructura de ejercicio para sesión
             ejercicio_adaptado = {
-                'consigna': exercise['content']['mission_markdown'],
-                'codigo_inicial': exercise['starter_code'],
-                'tests': exercise.get('hidden_tests', []),
-                'pistas': []  # Por ahora sin pistas
+                'consigna': exercise.description,
+                'codigo_inicial': exercise.starter_code or "",
+                'tests': tests_adaptados,
+                'pistas': pistas_adaptadas
             }
-            
-            # Crear datos de sesión con un solo ejercicio
+
+            # Info del tema
             tema_info = {
-                'id': exercise['id'],
-                'nombre': exercise['meta']['title'],
-                'descripcion': exercise['content']['story_markdown'],
-                'dificultad': exercise['meta']['difficulty'],
-                'tiempo_estimado_min': exercise['meta']['estimated_time_min']
+                'id': exercise.id,
+                'nombre': exercise.title,
+                'descripcion': exercise.description[:100] + "..." if len(exercise.description or "") > 100 else (exercise.description or ""),
+                'dificultad': exercise.difficulty,
+                'tiempo_estimado_min': exercise.time_min
             }
-            
+
             ejercicios = [ejercicio_adaptado]
             total_ejercicios = 1
-            tiempo_limite = exercise['meta']['estimated_time_min']
-            
+            tiempo_limite = exercise.time_min
+
         else:
-            # Intentar cargar del sistema antiguo de temas
-            logger.info(f"Ejercicio no encontrado en catálogo, intentando sistema antiguo: {request.tema_id}")
+            # Fallback: Intentar cargar del sistema antiguo de JSON
+            logger.info(f"Ejercicio no encontrado en BD, intentando sistema antiguo: {request.tema_id}")
             tema = obtener_tema(request.materia_codigo, request.tema_id)
-            
+
             if not tema:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Ejercicio '{request.tema_id}' no encontrado en ningún sistema"
                 )
-            if not tema:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Ejercicio '{request.tema_id}' no encontrado en ningún sistema"
-                )
-            
+
             # Verificar si el tema tiene ejercicios múltiples o uno solo
             if 'ejercicios' in tema:
                 ejercicios = tema['ejercicios']
@@ -438,8 +401,7 @@ async def iniciar_entrenamiento(
                     status_code=500,
                     detail="Tema sin ejercicios configurados"
                 )
-        
-        ejercicio_inicial = ejercicios[0]
+
         ejercicio_inicial = ejercicios[0]
         
         # Crear ID único para la sesión
@@ -499,11 +461,14 @@ async def iniciar_entrenamiento(
 async def submit_ejercicio(
     request: SubmitEjercicioRequest,
     current_user: User = Depends(get_current_user),
-    llm = Depends(get_llm_provider)
+    llm = Depends(get_llm_provider),
+    db: Session = Depends(get_db)
 ):
     """
     Envía el código de un ejercicio para evaluación con IA
     La IA analiza el código y determina si cumple con la consigna
+
+    FASE 4.3 - MIGRADO: Guarda intentos en exercise_attempts para trazabilidad N4
     """
     try:
         # Verificar sesión con logging detallado
@@ -708,10 +673,63 @@ async def submit_ejercicio(
             'mensaje': mensaje
         }
         sesion['resultados'].append(resultado)
-        
+
+        # ========================================================================
+        # FASE 4.3: Guardar attempt en base de datos para trazabilidad N4
+        # ========================================================================
+        try:
+            attempt_repo = ExerciseAttemptRepository(db)
+
+            # Determinar status basado en resultados
+            if tests_total == 0:
+                attempt_status = 'ERROR'
+            elif stderr_output.strip():
+                attempt_status = 'ERROR'
+            elif tests_passed == tests_total:
+                attempt_status = 'PASS'
+            else:
+                attempt_status = 'FAIL'
+
+            # Calcular score (0-10 escala)
+            if tests_total > 0:
+                attempt_score = (tests_passed / tests_total) * 10
+            else:
+                attempt_score = 0.0
+
+            # Obtener exercise_id desde la sesión
+            exercise_id = sesion.get('tema_id', f"unknown_{index_actual}")
+
+            # Crear attempt
+            new_attempt = ExerciseAttemptDB(
+                exercise_id=exercise_id,
+                student_id=str(current_user.id),
+                session_id=request.session_id,
+                submitted_code=request.codigo_usuario,
+                tests_passed=tests_passed,
+                tests_total=tests_total,
+                score=attempt_score,
+                status=attempt_status,
+                execution_time_ms=total_execution_time,
+                stdout=stdout_output[:2000],  # Limit to 2000 chars
+                stderr=stderr_output[:2000],
+                ai_feedback_summary=mensaje,
+                ai_feedback_detailed=feedback_completo[:5000] if 'feedback_completo' in locals() else None,
+                ai_suggestions=[],
+                hints_used=sesion.get('pistas_usadas', 0),
+                penalty_applied=sesion.get('pistas_usadas', 0) * 5,  # 5 puntos por pista
+                attempt_number=len([r for r in sesion['resultados'] if r.get('numero') == index_actual + 1]) + 1
+            )
+
+            attempt_repo.create(new_attempt)
+            logger.info(f"✅ Attempt guardado en BD: {new_attempt.id} - Score: {attempt_score:.2f}/10")
+
+        except Exception as e:
+            logger.error(f"⚠️ Error guardando attempt en BD (no crítico): {e}", exc_info=True)
+            # No fallar el endpoint si falla el guardado
+
         # Avanzar al siguiente ejercicio
         sesion['ejercicio_actual_index'] += 1
-        
+
         # Guardar sesión actualizada
         guardar_sesion(request.session_id, sesion)
         
@@ -787,6 +805,9 @@ async def solicitar_pista(
 ):
     """
     Solicita una pista para el ejercicio actual
+
+    FASE 4.4 - MIGRADO: Las pistas se cargan desde exercise_hints (BD)
+    durante la inicialización de la sesión. Aquí solo se registra el uso.
     """
     try:
         # Verificar sesión
@@ -796,34 +817,44 @@ async def solicitar_pista(
                 status_code=404,
                 detail="Sesión no encontrada o expirada"
             )
-        
+
         # Verificar permisos
         if sesion['user_id'] != current_user.id:
             raise HTTPException(
                 status_code=403,
                 detail="No tienes permiso para acceder a esta sesión"
             )
-        
+
         # Obtener ejercicio actual
         index_actual = sesion['ejercicio_actual_index']
         ejercicio = sesion['ejercicios'][index_actual]
-        
+
         # Verificar que el ejercicio tenga pistas
         if 'pistas' not in ejercicio or not ejercicio['pistas']:
             raise HTTPException(
                 status_code=404,
                 detail="Este ejercicio no tiene pistas disponibles"
             )
-        
+
         # Verificar que el número de pista sea válido
         if request.numero_pista < 0 or request.numero_pista >= len(ejercicio['pistas']):
             raise HTTPException(
                 status_code=400,
                 detail=f"Número de pista inválido. Disponibles: 0-{len(ejercicio['pistas']) - 1}"
             )
-        
+
+        # Registrar uso de pista (para penalización en attempt)
+        if 'pistas_usadas' not in sesion:
+            sesion['pistas_usadas'] = 0
+
+        # Solo incrementar si es una pista nueva (no repetida)
+        if request.numero_pista >= sesion['pistas_usadas']:
+            sesion['pistas_usadas'] = request.numero_pista + 1
+            guardar_sesion(request.session_id, sesion)
+            logger.info(f"💡 Pista {request.numero_pista + 1} solicitada. Total usadas: {sesion['pistas_usadas']}")
+
         pista = ejercicio['pistas'][request.numero_pista]
-        
+
         return PistaResponse(
             contenido=pista,
             numero=request.numero_pista,
@@ -848,6 +879,9 @@ async def corregir_con_ia(
 ):
     """
     Usa IA (Gemini/Mistral) para analizar el código y dar feedback
+
+    FASE 4.5 - MIGRADO: Los tests se cargan desde exercise_tests (BD)
+    durante la inicialización de la sesión. Aquí se usan para el análisis.
     """
     try:
         # Verificar sesión
@@ -1194,7 +1228,7 @@ async def cancelar_sesion(
         del sesiones_activas[session_id]
         
         return {"message": "Sesión cancelada exitosamente"}
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1202,4 +1236,111 @@ async def cancelar_sesion(
         raise HTTPException(
             status_code=500,
             detail="Error al cancelar la sesión"
+        )
+
+
+# ============================================================================
+# FASE 4.6: Endpoint de debugging/administración
+# ============================================================================
+
+@router.get("/exercises/{exercise_id}/details")
+async def get_exercise_details(
+    exercise_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_teacher_role)
+):
+    """
+    Obtiene los detalles completos de un ejercicio (solo para admins/teachers)
+
+    FASE 4.6 - MIGRADO: Endpoint para debugging, retorna ejercicio completo
+    con tests, hints y metadata desde la base de datos.
+
+    **Requiere rol: Teacher/Admin**
+    """
+    try:
+        exercise_repo = ExerciseRepository(db)
+        hint_repo = ExerciseHintRepository(db)
+        test_repo = ExerciseTestRepository(db)
+
+        # Cargar ejercicio con todos los detalles
+        exercise = exercise_repo.get_by_id(exercise_id)
+
+        if not exercise:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Ejercicio '{exercise_id}' no encontrado"
+            )
+
+        # Cargar hints y tests
+        hints = hint_repo.get_by_exercise(exercise_id)
+        tests = test_repo.get_by_exercise(exercise_id)
+
+        # Construir respuesta completa
+        response = {
+            "id": exercise.id,
+            "subject_code": exercise.subject_code,
+            "title": exercise.title,
+            "description": exercise.description,
+            "difficulty": exercise.difficulty,
+            "time_min": exercise.time_min,
+            "unit": exercise.unit,
+            "language": exercise.language,
+            "mission_markdown": exercise.mission_markdown,
+            "story_markdown": exercise.story_markdown,
+            "constraints": exercise.constraints,
+            "starter_code": exercise.starter_code,
+            "solution_code": exercise.solution_code,  # Solo visible para teachers
+            "tags": exercise.tags,
+            "learning_objectives": exercise.learning_objectives,
+            "cognitive_level": exercise.cognitive_level,
+            "version": exercise.version,
+            "is_active": exercise.is_active,
+            "created_at": exercise.created_at.isoformat() if exercise.created_at else None,
+            "updated_at": exercise.updated_at.isoformat() if exercise.updated_at else None,
+
+            # Hints detallados
+            "hints": [
+                {
+                    "id": hint.id,
+                    "hint_number": hint.hint_number,
+                    "title": hint.title,
+                    "content": hint.content,
+                    "penalty_points": hint.penalty_points,
+                }
+                for hint in sorted(hints, key=lambda h: h.hint_number)
+            ],
+
+            # Tests detallados (incluye tests ocultos para teachers)
+            "tests": [
+                {
+                    "id": test.id,
+                    "test_number": test.test_number,
+                    "description": test.description,
+                    "input": test.input,
+                    "expected_output": test.expected_output,
+                    "is_hidden": test.is_hidden,
+                    "timeout_seconds": test.timeout_seconds,
+                }
+                for test in sorted(tests, key=lambda t: t.test_number)
+            ],
+
+            # Estadísticas
+            "stats": {
+                "total_hints": len(hints),
+                "total_tests": len(tests),
+                "hidden_tests": sum(1 for t in tests if t.is_hidden),
+                "visible_tests": sum(1 for t in tests if not t.is_hidden),
+            }
+        }
+
+        logger.info(f"✅ Exercise details retrieved by teacher: {exercise_id} (user: {current_user.get('sub', 'unknown')})")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting exercise details for {exercise_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Error al obtener los detalles del ejercicio"
         )

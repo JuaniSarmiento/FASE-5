@@ -459,13 +459,18 @@ const TrainingExamPage: React.FC = () => {
             <div className="flex gap-3 mb-4">
               <button
                 onClick={handleSolicitarPista}
-                disabled={loadingPista || !sesion}
+                disabled={loadingPista || !sesion || (pistaActual !== null && numeroPistaActual >= pistaActual.total_pistas)}
                 className="flex-1 py-2 px-4 rounded-lg bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-yellow-500/30 transition-colors flex items-center justify-center gap-2"
               >
                 {loadingPista ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
                     Cargando...
+                  </>
+                ) : pistaActual !== null && numeroPistaActual >= pistaActual.total_pistas ? (
+                  <>
+                    <Lightbulb className="w-4 h-4" />
+                    Sin más pistas
                   </>
                 ) : (
                   <>

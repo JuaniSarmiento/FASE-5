@@ -1,0 +1,100 @@
+[
+  {
+    "id": "U2-LIST-01",
+    "meta": {
+      "title": "Listas: Gestión de Inventario",
+      "difficulty": "Easy",
+      "estimated_time_min": 20,
+      "tags": ["Listas", "CRUD", "Métodos de lista"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2],
+      "placeholder_text": "# Implementa las operaciones..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres el **Inventory Manager** de una tienda online. Necesitas un sistema para gestionar productos en stock.\n\n**Operaciones requeridas:**\n- Agregar productos\n- Eliminar productos\n- Buscar si un producto existe\n- Contar productos únicos",
+      "mission_markdown": "### Tu Misión\n\n1. Completa la función `agregar_producto(inventario, producto)`\n2. Completa la función `eliminar_producto(inventario, producto)`\n3. Completa la función `buscar_producto(inventario, producto)`\n4. Completa la función `contar_productos(inventario)`",
+      "constraints": [
+        "No usar sets, solo listas",
+        "Maneja casos donde el producto ya existe o no existe",
+        "Las funciones deben modificar la lista original (in-place)"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTA LÍNEA\ninventario = []\n\ndef agregar_producto(inventario, producto):\n    \"\"\"Agrega un producto si no existe.\"\"\"\n    # TODO: Implementa la lógica\n    pass\n\ndef eliminar_producto(inventario, producto):\n    \"\"\"Elimina un producto si existe.\"\"\"\n    # TODO: Implementa la lógica\n    pass\n\ndef buscar_producto(inventario, producto):\n    \"\"\"Retorna True si el producto existe.\"\"\"\n    # TODO: Implementa la lógica\n    pass\n\ndef contar_productos(inventario):\n    \"\"\"Retorna el número total de productos.\"\"\"\n    # TODO: Implementa la lógica\n    pass\n\n# Pruebas\nagregar_producto(inventario, \"Laptop\")\nagregar_producto(inventario, \"Mouse\")\nagregar_producto(inventario, \"Teclado\")\nprint(f\"Productos: {contar_productos(inventario)}\")  # Debe ser 3\nprint(f\"¿Existe Mouse? {buscar_producto(inventario, 'Mouse')}\")  # True\neliminar_producto(inventario, \"Mouse\")\nprint(f\"Después de eliminar: {contar_productos(inventario)}\")  # Debe ser 2",
+    "hidden_tests": [
+      {
+        "input": "agregar_producto(inventario, 'Laptop'); contar_productos(inventario)",
+        "expected": "1"
+      },
+      {
+        "input": "buscar_producto(inventario, 'Mouse')",
+        "expected": "False"
+      }
+    ]
+  },
+  {
+    "id": "U2-DICT-01",
+    "meta": {
+      "title": "Diccionarios: Sistema de Contactos",
+      "difficulty": "Medium",
+      "estimated_time_min": 30,
+      "tags": ["Diccionarios", "CRUD", "Búsqueda"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2, 3],
+      "placeholder_text": "# Implementa el sistema de contactos..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **desarrollador móvil** creando una app de contactos. Cada contacto tiene:\n- **Nombre** (clave única)\n- **Teléfono**\n- **Email**\n- **Ciudad**\n\n**Estructura:**\n```python\ncontactos = {\n    \"Juan\": {\"telefono\": \"555-1234\", \"email\": \"juan@mail.com\", \"ciudad\": \"Madrid\"},\n    \"Ana\": {\"telefono\": \"555-5678\", \"email\": \"ana@mail.com\", \"ciudad\": \"Barcelona\"}\n}\n```",
+      "mission_markdown": "### Tu Misión\n\n1. Función `agregar_contacto(nombre, telefono, email, ciudad)`\n2. Función `buscar_por_ciudad(ciudad)` → retorna lista de nombres\n3. Función `actualizar_telefono(nombre, nuevo_telefono)`\n4. Función `eliminar_contacto(nombre)`",
+      "constraints": [
+        "Valida que el contacto no exista antes de agregar",
+        "Maneja el caso donde no hay contactos en una ciudad",
+        "Retorna mensajes de error descriptivos"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTAS LÍNEAS\n# Sistema de Contactos\ncontactos = {}\n\ndef agregar_contacto(nombre, telefono, email, ciudad):\n    \"\"\"Agrega un nuevo contacto.\"\"\"\n    # TODO: Valida que no exista\n    # TODO: Agrega el contacto al diccionario\n    pass\n\ndef buscar_por_ciudad(ciudad):\n    \"\"\"Retorna lista de nombres en esa ciudad.\"\"\"\n    # TODO: Busca en todos los contactos\n    resultado = []\n    return resultado\n\ndef actualizar_telefono(nombre, nuevo_telefono):\n    \"\"\"Actualiza el teléfono de un contacto.\"\"\"\n    # TODO: Verifica que existe\n    # TODO: Actualiza el teléfono\n    pass\n\ndef eliminar_contacto(nombre):\n    \"\"\"Elimina un contacto por nombre.\"\"\"\n    # TODO: Verifica que existe\n    # TODO: Elimina del diccionario\n    pass\n\n# Pruebas\nagregar_contacto(\"Juan\", \"555-1234\", \"juan@mail.com\", \"Madrid\")\nagregar_contacto(\"Ana\", \"555-5678\", \"ana@mail.com\", \"Barcelona\")\nagregar_contacto(\"Luis\", \"555-9999\", \"luis@mail.com\", \"Madrid\")\n\nprint(f\"Contactos en Madrid: {buscar_por_ciudad('Madrid')}\")  # ['Juan', 'Luis']\nactualizar_telefono(\"Juan\", \"555-0000\")\nprint(f\"Teléfono de Juan: {contactos['Juan']['telefono']}\")  # 555-0000",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "len(buscar_por_ciudad('Madrid')) == 2"
+      },
+      {
+        "input": "",
+        "expected": "contactos['Juan']['telefono'] == '555-0000'"
+      }
+    ]
+  },
+  {
+    "id": "U2-TUPLE-01",
+    "meta": {
+      "title": "Tuplas: Coordenadas Geográficas",
+      "difficulty": "Easy",
+      "estimated_time_min": 15,
+      "tags": ["Tuplas", "Inmutabilidad", "Geometría"]
+    },
+    "ui_config": {
+      "editor_language": "python",
+      "read_only_lines": [1, 2, 3, 4, 5],
+      "placeholder_text": "# Calcula la distancia..."
+    },
+    "content": {
+      "story_markdown": "## Contexto\n\nEres un **GIS Developer** (Geographic Information Systems). Necesitas calcular la distancia entre dos ciudades usando sus coordenadas.\n\n**Fórmula de distancia euclidiana:**\n$$d = \\sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2}$$\n\n**Ciudades:**\n- Madrid: `(40.4168, -3.7038)`\n- Barcelona: `(41.3851, 2.1734)`",
+      "mission_markdown": "### Tu Misión\n\n1. Define las coordenadas como **tuplas** (inmutables)\n2. Implementa la función `calcular_distancia(coord1, coord2)`\n3. Calcula la distancia entre Madrid y Barcelona\n4. Imprime el resultado con 2 decimales",
+      "constraints": [
+        "Usa tuplas, no listas",
+        "Importa solo el módulo math",
+        "Redondea a 2 decimales"
+      ]
+    },
+    "starter_code": "# NO TOCAR ESTAS LÍNEAS\nimport math\n\n# Coordenadas (latitud, longitud)\nmadrid = (40.4168, -3.7038)\nbarcelona = (41.3851, 2.1734)\n\ndef calcular_distancia(coord1, coord2):\n    \"\"\"\n    Calcula la distancia euclidiana entre dos coordenadas.\n    Args:\n        coord1, coord2: tuplas (x, y)\n    Returns:\n        float: distancia\n    \"\"\"\n    # TODO: Desempaqueta las tuplas\n    x1, y1 = coord1\n    x2, y2 = coord2\n    \n    # TODO: Aplica la fórmula\n    distancia = 0.0\n    \n    return distancia\n\n# Calcula y muestra\ndist = calcular_distancia(madrid, barcelona)\nprint(f\"Distancia Madrid-Barcelona: {dist:.2f} grados\")",
+    "hidden_tests": [
+      {
+        "input": "",
+        "expected": "abs(dist - 6.07) < 0.1"
+      }
+    ]
+  }
+]

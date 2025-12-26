@@ -24,6 +24,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    pull_policy: build  # Siempre reconstruir si hay cambios
     image: ai-native-mvp:latest
     container_name: ai-native-api
     ports:
@@ -129,6 +130,7 @@ services:
     build:
       context: ./frontEnd
       dockerfile: Dockerfile
+    pull_policy: build  # Siempre reconstruir si hay cambios
     image: ai-native-frontend:latest
     container_name: ai-native-frontend
     ports:
@@ -176,7 +178,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Changed to 5433 to avoid conflict with local PostgreSQL
     volumes:
       # Persistencia de datos
       - postgres_data:/var/lib/postgresql/data
