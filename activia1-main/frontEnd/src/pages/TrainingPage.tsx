@@ -12,15 +12,15 @@ import {
 import { trainingService, type LenguajeInfo, type LeccionInfo } from '../services/api/training.service';
 
 /**
- * TrainingPage - Página de selección de lenguaje y lección
+ * TrainingPage - Página de selección de lenguaje, lección y ejercicio
  *
  * Flujo de 3 pasos:
- * 1. Seleccionar Lenguaje (Python, Java, etc.)
- * 2. Seleccionar Lección (Secuenciales, Condicionales, etc.)
- * 3. Iniciar Entrenamiento
+ * 1. Seleccionar Lenguaje (Dropdown)
+ * 2. Seleccionar Lección (Dropdown)
+ * 3. Seleccionar Ejercicio (Grid de tarjetas)
  */
 
-const TrainingPageNew: React.FC = () => {
+const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [lenguajes, setLenguajes] = useState<LenguajeInfo[]>([]);
@@ -69,26 +69,6 @@ const TrainingPageNew: React.FC = () => {
       setError(errorMsg);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleIniciarEntrenamiento = async (leccion: LeccionInfo) => {
-    if (!lenguajeSeleccionado) {
-      return;
-    }
-
-    try {
-      // Navegar a la página de examen con los datos
-      navigate('/training/exam', {
-        state: {
-          language: lenguajeSeleccionado.language,
-          unit_number: leccion.unit_number,
-          leccion_nombre: leccion.nombre
-        }
-      });
-    } catch (err) {
-      console.error('Error iniciando entrenamiento:', err);
-      setError('Error al iniciar el entrenamiento');
     }
   };
 
@@ -198,59 +178,109 @@ const TrainingPageNew: React.FC = () => {
           </div>
         )}
 
-        {/* Grid de lecciones */}
-        {lenguajeSeleccionado && (
-          <div>
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-400" />
-              Selecciona una Lección
-            </h3>
+        {/* Selector de Lección (Combo Dropdown) */}
+        {lenguajeSeleccionado && lenguajeSeleccionado.lecciones.length > 0 && (
+          <div className="mb-8">
+            <div className="glass rounded-2xl p-6">
+              <label className="block text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+                Selecciona una Lección
+              </label>
+              <select
+                value={leccionSeleccionada?.id || ''}
+                onChange={(e) => {
+                  const selected = lenguajeSeleccionado.lecciones.find(l => l.id === e.target.value);
+                  setLeccionSeleccionada(selected || null);
+                  console.log('📖 Lección seleccionada:', selected?.nombre);
+                }}
+                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer hover:bg-gray-800/70"
+              >
+                <option value="" className="bg-gray-800">Elige una lección...</option>
+                {lenguajeSeleccionado.lecciones.map((leccion) => (
+                  <option key={leccion.id} value={leccion.id} className="bg-gray-800">
+                    {leccion.nombre} ({leccion.ejercicios.length} ejercicios - {leccion.total_puntos} pts)
+                  </option>
+                ))}
+              </select>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {lenguajeSeleccionado.lecciones.map((leccion) => (
-                <div
-                  key={leccion.id}
-                  onClick={() => setLeccionSeleccionada(leccion)}
-                  className={`glass rounded-xl p-6 cursor-pointer transition-all hover:scale-[1.02] flex flex-col ${
-                    leccionSeleccionada?.id === leccion.id
-                      ? 'ring-2 ring-purple-500 bg-purple-500/10'
-                      : 'hover:bg-gray-800/50'
-                  }`}
-                >
-                  {/* Título de la lección */}
-                  <h4 className="text-lg font-bold text-white mb-2">{leccion.nombre}</h4>
-
-                  {/* Descripción */}
-                  <p className="text-gray-400 text-sm mb-4 flex-grow">{leccion.descripcion}</p>
-
-                  {/* Metadata */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getDifficultyColor(leccion.dificultad)}`}>
-                      {leccion.dificultad}
-                    </span>
-                    <span className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-700/50 text-gray-300 flex items-center gap-1">
-                      <BookOpen className="w-3 h-3" />
-                      {leccion.ejercicios.length} ejercicios
+              {/* Info de lección seleccionada */}
+              {leccionSeleccionada && (
+                <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-white">{leccionSeleccionada.nombre}</h3>
+                      <p className="text-sm text-gray-400">{leccionSeleccionada.descripcion}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-purple-400">{leccionSeleccionada.ejercicios.length}</p>
+                      <p className="text-xs text-gray-400">Ejercicios</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getDifficultyColor(leccionSeleccionada.dificultad)}`}>
+                      {leccionSeleccionada.dificultad}
                     </span>
                     <span className="px-3 py-1 rounded-lg text-xs font-medium bg-yellow-700/30 text-yellow-300 flex items-center gap-1">
                       <Award className="w-3 h-3" />
-                      {leccion.total_puntos} pts
+                      {leccionSeleccionada.total_puntos} pts totales
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Grid de Ejercicios Individuales */}
+        {leccionSeleccionada && (
+          <div>
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-purple-400" />
+              Ejercicios Disponibles
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {leccionSeleccionada.ejercicios.sort((a, b) => a.id.localeCompare(b.id)).map((ejercicio) => (
+                <div
+                  key={ejercicio.id}
+                  className="glass rounded-xl p-5 flex flex-col hover:bg-gray-800/50 transition-all"
+                >
+                  {/* Título del ejercicio */}
+                  <h4 className="text-lg font-bold text-white mb-2">{ejercicio.titulo}</h4>
+
+                  {/* Metadata del ejercicio */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${getDifficultyColor(ejercicio.dificultad)}`}>
+                      {ejercicio.dificultad}
+                    </span>
+                    <span className="px-2 py-1 rounded-lg text-xs font-medium bg-gray-700/50 text-gray-300 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {ejercicio.tiempo_estimado_min} min
+                    </span>
+                    <span className="px-2 py-1 rounded-lg text-xs font-medium bg-yellow-700/30 text-yellow-300 flex items-center gap-1">
+                      <Award className="w-3 h-3" />
+                      {ejercicio.puntos} pts
                     </span>
                   </div>
 
-                  {/* Botón de Iniciar - SOLO si está seleccionado */}
-                  {leccionSeleccionada?.id === leccion.id && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation(); // Evitar que se dispare el onClick de la card
-                        handleIniciarEntrenamiento(leccion);
-                      }}
-                      className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-bold text-white flex items-center justify-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-purple-500/30 mt-2"
-                    >
-                      <PlayCircle className="w-5 h-5" />
-                      Iniciar Entrenamiento
-                    </button>
-                  )}
+                  {/* Botón Iniciar */}
+                  <button
+                    onClick={() => {
+                      // Navegar al examen con este ejercicio específico
+                      navigate('/training/exam', {
+                        state: {
+                          language: lenguajeSeleccionado!.language,
+                          unit_number: leccionSeleccionada.unit_number,
+                          leccion_nombre: leccionSeleccionada.nombre,
+                          exercise_id: ejercicio.id  // Pasar el ID del ejercicio específico
+                        }
+                      });
+                    }}
+                    className="w-full px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-bold text-white flex items-center justify-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-purple-500/30 mt-auto"
+                  >
+                    <PlayCircle className="w-4 h-4" />
+                    Iniciar
+                  </button>
                 </div>
               ))}
             </div>
@@ -290,4 +320,4 @@ const TrainingPageNew: React.FC = () => {
   );
 };
 
-export default TrainingPageNew;
+export default TrainingPage;

@@ -26,7 +26,7 @@ const TrainingExamPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
-  const { language, unit_number, leccion_nombre } = location.state || {};
+  const { language, unit_number, leccion_nombre, exercise_id } = location.state || {};
 
   const [sesion, setSesion] = useState<SesionEntrenamiento | null>(null);
   const [ejercicioActual, setEjercicioActual] = useState<EjercicioActual | null>(null);
@@ -62,14 +62,16 @@ const TrainingExamPage: React.FC = () => {
         clearInterval(timerRef.current);
       }
     };
-  }, [language, unit_number]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language, unit_number, exercise_id]);
 
   const iniciarSesion = async () => {
     try {
       setLoading(true);
       const data = await trainingService.iniciarEntrenamiento({
         language,
-        unit_number
+        unit_number,
+        ...(exercise_id && { exercise_id })  // Solo incluir si existe
       });
       
       setSesion(data);
@@ -480,6 +482,7 @@ const TrainingExamPage: React.FC = () => {
                 )}
               </button>
 
+              {/* COMMENTED OUT - User requested removal (Dec 27, 2025)
               <button
                 onClick={handleCorregirConIA}
                 disabled={loadingIA || !sesion || !codigo.trim()}
@@ -497,6 +500,7 @@ const TrainingExamPage: React.FC = () => {
                   </>
                 )}
               </button>
+              */}
             </div>
 
             {pistaActual && (

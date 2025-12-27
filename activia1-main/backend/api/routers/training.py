@@ -20,6 +20,7 @@ from pathlib import Path
 import uuid
 import redis
 import os
+import re
 
 from backend.database.config import get_db
 from backend.api.routers.auth_new import get_current_user
@@ -107,6 +108,7 @@ class IniciarEntrenamientoRequest(BaseModel):
     """Request para iniciar una sesión de entrenamiento"""
     language: str  # "python", "java", etc.
     unit_number: int  # 1, 2, 3, etc.
+    exercise_id: Optional[str] = None  # Opcional: ID de ejercicio específico (ej: "SEC-01")
 
 
 class IniciarEntrenamientoRequestLegacy(BaseModel):
@@ -505,17 +507,29 @@ async def iniciar_entrenamiento(
                 detail=f"Lenguaje '{request.language}' no encontrado"
             )
 
-        # Cargar todos los ejercicios de este subject + unit
-        all_exercises = exercise_repo.get_by_subject(subject_found.code)
-        exercises_of_unit = [ex for ex in all_exercises if ex.unit == request.unit_number]
+        # Cargar ejercicios: individual o toda la unidad
+        if request.exercise_id:
+            # Modo ejercicio individual
+            exercise = exercise_repo.get_by_id(request.exercise_id)
+            if not exercise or exercise.subject_code != subject_found.code:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Ejercicio '{request.exercise_id}' no encontrado"
+                )
+            exercises_of_unit = [exercise]
+            logger.info(f"✅ Modo individual: Cargado ejercicio {exercise.id} - {exercise.title}")
+        else:
+            # Modo lección completa: cargar todos los ejercicios de la unidad
+            all_exercises = exercise_repo.get_by_subject(subject_found.code)
+            exercises_of_unit = [ex for ex in all_exercises if ex.unit == request.unit_number]
 
-        if not exercises_of_unit:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No hay ejercicios disponibles para {request.language} - Unidad {request.unit_number}"
-            )
+            if not exercises_of_unit:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No hay ejercicios disponibles para {request.language} - Unidad {request.unit_number}"
+                )
 
-        logger.info(f"✅ Encontrados {len(exercises_of_unit)} ejercicios para {request.language} - Unidad {request.unit_number}")
+            logger.info(f"✅ Modo lección completa: Encontrados {len(exercises_of_unit)} ejercicios para {request.language} - Unidad {request.unit_number}")
 
         # Construir lista de ejercicios con hints y tests
         ejercicios_adaptados = []
@@ -581,7 +595,7 @@ async def iniciar_entrenamiento(
             'total_ejercicios': len(ejercicios_adaptados),
             'ejercicio_actual_index': 0,
             'resultados': [],
-            'pistas_usadas': [],  # [(ejercicio_index, numero_pista, penalizacion)]
+            'pistas_usadas': 0,  # Contador simple de pistas usadas
             'inicio': inicio,
             'fin_estimado': fin_estimado,
             'tiempo_limite_min': tiempo_total,
@@ -752,12 +766,28 @@ async def submit_ejercicio(
                         else:
                             logger.warning(f"✗ Test {i} FALLÓ: expected={expected}, actual={actual_result}")
                     else:
-                        # Comparar output directo
-                        if stdout.strip() == str(expected).strip():
-                            tests_passed += 1
-                            logger.info(f"✓ Test {i} PASADO")
+                        # Comparar output directo (puede ser regex o string exacto)
+                        expected_str = str(expected).strip()
+                        actual_output = stdout.strip()
+
+                        # Intentar match con regex si el expected parece un patrón regex
+                        # (contiene metacaracteres como .*, +, ?, etc.)
+                        is_regex = any(char in expected_str for char in ['.*', '.+', '\\d', '\\w', '[', ']', '(', ')', '|', '^', '$'])
+
+                        if is_regex:
+                            # Usar regex matching
+                            if re.search(expected_str, actual_output):
+                                tests_passed += 1
+                                logger.info(f"✓ Test {i} PASADO (regex match)")
+                            else:
+                                logger.warning(f"✗ Test {i} FALLÓ: regex '{expected_str}' no coincide con output '{actual_output}'")
                         else:
-                            logger.warning(f"✗ Test {i} FALLÓ: output no coincide")
+                            # Comparación exacta de string
+                            if actual_output == expected_str:
+                                tests_passed += 1
+                                logger.info(f"✓ Test {i} PASADO (exact match)")
+                            else:
+                                logger.warning(f"✗ Test {i} FALLÓ: expected '{expected_str}', got '{actual_output}'")
                 except Exception as e:
                     logger.warning(f"✗ Test {i} ERROR: {e}")
             else:
@@ -785,7 +815,7 @@ async def submit_ejercicio(
         
         # Preparar formato de ejercicio para CodeEvaluator
         exercise_formatted = {
-            'id': f"training_{sesion['tema_id']}_{index_actual + 1}",
+            'id': f"training_{sesion['language']}_u{sesion['unit_number']}_{index_actual + 1}",
             'meta': {
                 'title': f"Ejercicio {index_actual + 1}: {ejercicio.get('consigna', '')[:50]}..."
             },
