@@ -15,6 +15,31 @@ import apiClient from './client';
 // TIPOS / INTERFACES
 // ============================================================================
 
+export interface EjercicioInfo {
+  id: string;
+  titulo: string;
+  dificultad: string;
+  tiempo_estimado_min: number;
+  puntos: number;
+}
+
+export interface LeccionInfo {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  unit_number: number;
+  ejercicios: EjercicioInfo[];
+  total_puntos: number;
+  dificultad: string;
+}
+
+export interface LenguajeInfo {
+  language: string;
+  nombre_completo: string;
+  lecciones: LeccionInfo[];
+}
+
+// LEGACY TYPES (mantener para compatibilidad)
 export interface TemaInfo {
   id: string;
   nombre: string;
@@ -30,8 +55,8 @@ export interface MateriaInfo {
 }
 
 export interface IniciarEntrenamientoRequest {
-  materia_codigo: string;
-  tema_id: string;
+  language: string;
+  unit_number: number;
 }
 
 export interface EjercicioActual {
@@ -126,7 +151,17 @@ export interface EstadoSesion {
 
 export const trainingService = {
   /**
-   * Obtiene las materias disponibles con sus temas
+   * Obtiene los lenguajes disponibles con sus lecciones
+   * Estructura jerárquica: Lenguaje → Lecciones → Ejercicios
+   */
+  async getLenguajes(): Promise<LenguajeInfo[]> {
+    const response = await apiClient.get<LenguajeInfo[]>('/training/lenguajes');
+    return response.data;
+  },
+
+  /**
+   * Obtiene las materias disponibles con sus temas (LEGACY)
+   * @deprecated Usar getLenguajes() para la nueva estructura
    */
   async getMaterias(): Promise<MateriaInfo[]> {
     const response = await apiClient.get<MateriaInfo[]>('/training/materias');

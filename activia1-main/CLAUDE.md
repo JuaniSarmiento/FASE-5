@@ -50,6 +50,115 @@ The exercises migration from JSON to PostgreSQL is **functionally complete**. Al
 
 See `docs/plans/migracion-ejercicios-db.md` for full details.
 
+## ✅ NEW: Entrenador Digital - Estructura Jerárquica
+
+**Status**: 🟢 COMPLETADO (Diciembre 27, 2025)
+
+El Entrenador Digital ahora usa una estructura jerárquica de 3 niveles: **Lenguaje → Lección → Ejercicios**.
+
+**Plan Completo**: `docs/plans/entrenador-digital-secuenciales.md`
+
+### Cambios Implementados
+
+**Backend:**
+- ✅ **Nuevo endpoint**: `GET /api/v1/training/lenguajes` - Retorna estructura jerárquica
+- ✅ **Schemas nuevos**: `LenguajeInfo`, `LeccionInfo`, `EjercicioInfo`
+- ✅ **Endpoint actualizado**: `POST /api/v1/training/iniciar` - Acepta `language` + `unit_number`
+- ✅ **Endpoint legacy mantenido**: `GET /api/v1/training/materias` (compatibilidad)
+
+**Frontend:**
+- ✅ **Nueva página**: `TrainingPageNew.tsx` - Selector de 3 pasos (Lenguaje → Lección → Iniciar)
+- ✅ **Servicio actualizado**: `training.service.ts` - Método `getLenguajes()`
+- ✅ **Nomenclatura corregida**: "Lenguaje" en lugar de "Materia"
+
+**Ejercicios de Secuenciales:**
+- ✅ **10 ejercicios** creados en Python (unit=1)
+- ✅ **40 pistas** con penalizaciones graduales (5, 10, 15, 20 pts)
+- ✅ **23 tests automáticos** (visibles y ocultos)
+- ✅ **Script de seed**: `backend/scripts/seed_secuenciales.py` (1113 líneas)
+
+### Estructura de Datos
+
+```
+Lenguaje: python
+  └── Lección: Estructuras Secuenciales (unit=1)
+      ├── SEC-01: Hola Mundo (12 pts, 5 min)
+      ├── SEC-02: Saludo Personalizado (16 pts, 10 min)
+      ├── SEC-03: Datos Personales (16 pts, 15 min)
+      ├── SEC-04: Área y Perímetro (24 pts, 20 min)
+      ├── SEC-05: Conversión Segundos→Horas (20 pts, 10 min)
+      ├── SEC-06: Tabla de Multiplicar (20 pts, 15 min)
+      ├── SEC-07: Operaciones Aritméticas (28 pts, 15 min)
+      ├── SEC-08: IMC (24 pts, 15 min)
+      ├── SEC-09: Celsius→Fahrenheit (20 pts, 10 min)
+      └── SEC-10: Promedio de 3 Números (24 pts, 10 min)
+      TOTAL: 204 puntos, 125 minutos
+```
+
+### Uso del Sistema
+
+```bash
+# Cargar ejercicios de Secuenciales
+cd activia1-main
+python -m backend.scripts.seed_secuenciales
+
+# Preview sin guardar cambios
+python -m backend.scripts.seed_secuenciales --dry-run
+```
+
+### API Endpoints
+
+```python
+# Obtener lenguajes con lecciones (nuevo)
+GET /api/v1/training/lenguajes
+Response: List[LenguajeInfo]
+  └── LenguajeInfo {
+        language: str,
+        nombre_completo: str,
+        lecciones: List[LeccionInfo]
+      }
+      └── LeccionInfo {
+            id: str,
+            nombre: str,
+            unit_number: int,
+            ejercicios: List[EjercicioInfo],
+            total_puntos: int,
+            dificultad: str
+          }
+
+# Iniciar entrenamiento de una lección
+POST /api/v1/training/iniciar
+Body: {
+  "language": "python",
+  "unit_number": 1
+}
+Response: SesionEntrenamiento
+```
+
+### Tests Automáticos
+
+Los tests están almacenados en `exercise_tests` table y se ejecutan con el sandbox seguro:
+
+```python
+# Ejemplo de test (SEC-02 - Saludo Personalizado)
+{
+  "exercise_id": "SEC-02",
+  "test_number": 1,
+  "description": "Verifica saludo con nombre 'Marcos'",
+  "input": "Marcos\n",           # Simulado como stdin
+  "expected": ".*Hola Marcos.*", # Regex para stdout
+  "is_hidden": False,            # Visible para estudiante
+  "timeout_seconds": 5
+}
+```
+
+**Flujo de evaluación**:
+1. Estudiante envía código
+2. Tests automáticos se ejecutan con `execute_python_code()` (sandbox)
+3. CodeEvaluator (IA "Alex") analiza el código y da feedback
+4. Nota final = Tests (40%) + IA (60%) - Penalizaciones por pistas
+5. Attempt se guarda en `exercise_attempts` (trazabilidad N4)
+
 ## Quick Reference
 
 ```bash

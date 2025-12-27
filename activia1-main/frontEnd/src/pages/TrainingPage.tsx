@@ -1,85 +1,79 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  BookOpen, 
-  GraduationCap, 
-  Clock, 
-  TrendingUp, 
+import {
+  BookOpen,
+  GraduationCap,
+  Clock,
   PlayCircle,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Award
 } from 'lucide-react';
-import { trainingService, MateriaInfo, TemaInfo } from '../services/api';
+import { trainingService, type LenguajeInfo, type LeccionInfo } from '../services/api/training.service';
 
 /**
- * TrainingPage - Página de selección de materia y tema
- * 
- * Permite al usuario:
- * - Ver materias disponibles (por ahora solo Programación 1)
- * - Seleccionar un tema de la materia
- * - Ver información del tema (dificultad, tiempo estimado)
- * - Iniciar el entrenamiento tipo examen
+ * TrainingPage - Página de selección de lenguaje y lección
+ *
+ * Flujo de 3 pasos:
+ * 1. Seleccionar Lenguaje (Python, Java, etc.)
+ * 2. Seleccionar Lección (Secuenciales, Condicionales, etc.)
+ * 3. Iniciar Entrenamiento
  */
 
-const TrainingPage: React.FC = () => {
+const TrainingPageNew: React.FC = () => {
   const navigate = useNavigate();
-  
-  const [materias, setMaterias] = useState<MateriaInfo[]>([]);
-  const [materiaSeleccionada, setMateriaSeleccionada] = useState<MateriaInfo | null>(null);
-  const [temaSeleccionado, setTemaSeleccionado] = useState<TemaInfo | null>(null);
+
+  const [lenguajes, setLenguajes] = useState<LenguajeInfo[]>([]);
+  const [lenguajeSeleccionado, setLenguajeSeleccionado] = useState<LenguajeInfo | null>(null);
+  const [leccionSeleccionada, setLeccionSeleccionada] = useState<LeccionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar materias al montar el componente
+  // Cargar lenguajes al montar el componente
   useEffect(() => {
-    loadMaterias();
+    loadLenguajes();
   }, []);
 
-  const loadMaterias = async () => {
+  const loadLenguajes = async () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('🔄 Cargando materias desde:', '/api/v1/training/materias');
-      const data = await trainingService.getMaterias();
-      console.log('✅ Materias cargadas:', data);
-      console.log('🔧 Limpiando selección de materia (debe estar en null)');
-      setMaterias(data);
-      setMateriaSeleccionada(null); // Limpiar selección para forzar elección del usuario
-      setTemaSeleccionado(null); // También limpiar tema
-      console.log('✅ Materia seleccionada después de limpiar:', null);
+      console.log('🔄 Cargando lenguajes desde:', '/api/v1/training/lenguajes');
+      const data = await trainingService.getLenguajes();
+      console.log('✅ Lenguajes cargados:', data);
+      setLenguajes(data);
+      setLenguajeSeleccionado(null);
+      setLeccionSeleccionada(null);
 
-      // NO auto-seleccionar materia - el usuario debe elegir del combo
       if (data.length === 0) {
-        console.warn('⚠️ No hay materias disponibles');
-        setError('No hay materias disponibles en este momento');
+        console.warn('⚠️ No hay lenguajes disponibles');
+        setError('No hay lenguajes disponibles en este momento');
       }
-    } catch (err: any) {
-      console.error('❌ Error cargando materias:', err);
-      console.error('Detalles del error:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status
-      });
-      
-      let errorMsg = 'Error al cargar las materias disponibles. ';
-      if (err.response?.status === 404) {
-        errorMsg += 'Endpoint no encontrado. Verifica que el backend esté corriendo.';
-      } else if (err.response?.status === 401) {
-        errorMsg += 'No autorizado. Por favor inicia sesión nuevamente.';
-      } else if (err.message.includes('Network Error')) {
+    } catch (err: unknown) {
+      console.error('❌ Error cargando lenguajes:', err);
+
+      let errorMsg = 'Error al cargar los lenguajes disponibles. ';
+      if (typeof err === 'object' && err !== null && 'response' in err) {
+        const response = (err as { response?: { status?: number } }).response;
+        if (response?.status === 404) {
+          errorMsg += 'Endpoint no encontrado. Verifica que el backend esté corriendo.';
+        } else if (response?.status === 401) {
+          errorMsg += 'No autorizado. Por favor inicia sesión nuevamente.';
+        }
+      } else if (err instanceof Error && err.message.includes('Network Error')) {
         errorMsg += 'No se puede conectar al backend. Verifica que esté corriendo en http://localhost:8000';
-      } else {
+      } else if (err instanceof Error) {
         errorMsg += err.message;
       }
-      
+
       setError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleIniciarEntrenamiento = async (tema: TemaInfo) => {
-    if (!materiaSeleccionada) {
+  const handleIniciarEntrenamiento = async (leccion: LeccionInfo) => {
+    if (!lenguajeSeleccionado) {
       return;
     }
 
@@ -87,8 +81,9 @@ const TrainingPage: React.FC = () => {
       // Navegar a la página de examen con los datos
       navigate('/training/exam', {
         state: {
-          materia_codigo: materiaSeleccionada.codigo,
-          tema_id: tema.id
+          language: lenguajeSeleccionado.language,
+          unit_number: leccion.unit_number,
+          leccion_nombre: leccion.nombre
         }
       });
     } catch (err) {
@@ -99,13 +94,13 @@ const TrainingPage: React.FC = () => {
 
   const getDifficultyColor = (dificultad: string): string => {
     const lower = dificultad.toLowerCase();
-    if (lower.includes('fácil') || lower.includes('muy fácil')) {
+    if (lower.includes('fácil') || lower.includes('facil') || lower.includes('easy')) {
       return 'bg-green-500/10 text-green-400 border-green-500/30';
     }
-    if (lower.includes('media') || lower.includes('intermedia')) {
+    if (lower.includes('media') || lower.includes('intermedia') || lower.includes('medium')) {
       return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30';
     }
-    if (lower.includes('difícil') || lower.includes('avanzada')) {
+    if (lower.includes('difícil') || lower.includes('dificil') || lower.includes('avanzada') || lower.includes('hard')) {
       return 'bg-red-500/10 text-red-400 border-red-500/30';
     }
     return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
@@ -116,7 +111,7 @@ const TrainingPage: React.FC = () => {
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-purple-500 mb-6"></div>
-          <p className="text-white text-xl font-bold mb-2">Cargando materias...</p>
+          <p className="text-white text-xl font-bold mb-2">Cargando lenguajes...</p>
           <p className="text-gray-400 text-sm">Conectando con el servidor...</p>
         </div>
       </div>
@@ -126,7 +121,7 @@ const TrainingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
       <div className="max-w-7xl mx-auto">
-        
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
@@ -135,17 +130,17 @@ const TrainingPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-4xl font-bold gradient-text">Entrenador Digital</h1>
-              <p className="text-gray-400 mt-1">Modo Examen - Elige tu tema y demuestra tus habilidades</p>
+              <p className="text-gray-400 mt-1">Modo Examen - Elige tu lenguaje y lección</p>
             </div>
           </div>
-          
+
           {/* Info banner */}
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
             <div className="text-sm text-blue-300">
               <p className="font-medium mb-1">💡 ¿Cómo funciona?</p>
               <p className="text-blue-400/80">
-                1. Selecciona un tema • 2. El examen tiene tiempo límite • 3. Puedes pedir hasta 4 pistas (reducen tu nota) • 4. Recibe feedback instantáneo con IA
+                1. Selecciona un lenguaje • 2. Elige una lección • 3. El examen tiene tiempo límite • 4. Puedes pedir hasta 4 pistas (reducen tu nota) • 5. Recibe feedback instantáneo con IA
               </p>
             </div>
           </div>
@@ -158,43 +153,43 @@ const TrainingPage: React.FC = () => {
           </div>
         )}
 
-        {/* Selector de Materia (Combo Dropdown) */}
-        {materias.length > 0 && (
+        {/* Selector de Lenguaje (Combo Dropdown) */}
+        {lenguajes.length > 0 && (
           <div className="mb-8">
             <div className="glass rounded-2xl p-6">
               <label className="block text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-purple-400" />
-                Selecciona una Materia
+                Selecciona un Lenguaje
               </label>
               <select
-                value={materiaSeleccionada?.codigo || ''}
+                value={lenguajeSeleccionado?.language || ''}
                 onChange={(e) => {
-                  const selected = materias.find(m => m.codigo === e.target.value);
-                  setMateriaSeleccionada(selected || null);
-                  setTemaSeleccionado(null); // Resetear tema cuando cambia materia
-                  console.log('📚 Materia seleccionada:', selected?.materia);
+                  const selected = lenguajes.find(l => l.language === e.target.value);
+                  setLenguajeSeleccionado(selected || null);
+                  setLeccionSeleccionada(null); // Resetear lección cuando cambia lenguaje
+                  console.log('📚 Lenguaje seleccionado:', selected?.nombre_completo);
                 }}
                 className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer hover:bg-gray-800/70"
               >
-                <option value="" className="bg-gray-800">Elige una materia...</option>
-                {materias.map((materia) => (
-                  <option key={materia.codigo} value={materia.codigo} className="bg-gray-800">
-                    {materia.materia} ({materia.temas.length} ejercicios)
+                <option value="" className="bg-gray-800">Elige un lenguaje...</option>
+                {lenguajes.map((lenguaje) => (
+                  <option key={lenguaje.language} value={lenguaje.language} className="bg-gray-800">
+                    {lenguaje.nombre_completo} ({lenguaje.lecciones.length} lecciones)
                   </option>
                 ))}
               </select>
 
-              {/* Info de materia seleccionada */}
-              {materiaSeleccionada && (
+              {/* Info de lenguaje seleccionado */}
+              {lenguajeSeleccionado && (
                 <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-bold text-white">{materiaSeleccionada.materia}</h3>
-                      <p className="text-sm text-gray-400">Código: <span className="text-purple-400 font-mono">{materiaSeleccionada.codigo}</span></p>
+                      <h3 className="text-lg font-bold text-white">{lenguajeSeleccionado.nombre_completo}</h3>
+                      <p className="text-sm text-gray-400">Lenguaje: <span className="text-purple-400 font-mono">{lenguajeSeleccionado.language}</span></p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-purple-400">{materiaSeleccionada.temas.length}</p>
-                      <p className="text-xs text-gray-400">Ejercicios</p>
+                      <p className="text-2xl font-bold text-purple-400">{lenguajeSeleccionado.lecciones.length}</p>
+                      <p className="text-xs text-gray-400">Lecciones</p>
                     </div>
                   </div>
                 </div>
@@ -203,48 +198,52 @@ const TrainingPage: React.FC = () => {
           </div>
         )}
 
-        {/* Grid de temas */}
-        {materiaSeleccionada && (
+        {/* Grid de lecciones */}
+        {lenguajeSeleccionado && (
           <div>
             <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-400" />
-              Selecciona un Tema
+              Selecciona una Lección
             </h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {materiaSeleccionada.temas.map((tema) => (
+              {lenguajeSeleccionado.lecciones.map((leccion) => (
                 <div
-                  key={tema.id}
-                  onClick={() => setTemaSeleccionado(tema)}
+                  key={leccion.id}
+                  onClick={() => setLeccionSeleccionada(leccion)}
                   className={`glass rounded-xl p-6 cursor-pointer transition-all hover:scale-[1.02] flex flex-col ${
-                    temaSeleccionado?.id === tema.id
+                    leccionSeleccionada?.id === leccion.id
                       ? 'ring-2 ring-purple-500 bg-purple-500/10'
                       : 'hover:bg-gray-800/50'
                   }`}
                 >
-                  {/* Título del tema */}
-                  <h4 className="text-lg font-bold text-white mb-2">{tema.nombre}</h4>
+                  {/* Título de la lección */}
+                  <h4 className="text-lg font-bold text-white mb-2">{leccion.nombre}</h4>
 
                   {/* Descripción */}
-                  <p className="text-gray-400 text-sm mb-4 flex-grow">{tema.descripcion}</p>
+                  <p className="text-gray-400 text-sm mb-4 flex-grow">{leccion.descripcion}</p>
 
                   {/* Metadata */}
                   <div className="flex flex-wrap gap-2 mb-4">
-                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getDifficultyColor(tema.dificultad)}`}>
-                      {tema.dificultad}
+                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getDifficultyColor(leccion.dificultad)}`}>
+                      {leccion.dificultad}
                     </span>
                     <span className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-700/50 text-gray-300 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {tema.tiempo_estimado_min} min
+                      <BookOpen className="w-3 h-3" />
+                      {leccion.ejercicios.length} ejercicios
+                    </span>
+                    <span className="px-3 py-1 rounded-lg text-xs font-medium bg-yellow-700/30 text-yellow-300 flex items-center gap-1">
+                      <Award className="w-3 h-3" />
+                      {leccion.total_puntos} pts
                     </span>
                   </div>
 
                   {/* Botón de Iniciar - SOLO si está seleccionado */}
-                  {temaSeleccionado?.id === tema.id && (
+                  {leccionSeleccionada?.id === leccion.id && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation(); // Evitar que se dispare el onClick de la card
-                        handleIniciarEntrenamiento(tema);
+                        handleIniciarEntrenamiento(leccion);
                       }}
                       className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-bold text-white flex items-center justify-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-purple-500/30 mt-2"
                     >
@@ -258,27 +257,27 @@ const TrainingPage: React.FC = () => {
           </div>
         )}
 
-        {/* Mensaje si no hay temas */}
-        {materiaSeleccionada && materiaSeleccionada.temas.length === 0 && (
+        {/* Mensaje si no hay lecciones */}
+        {lenguajeSeleccionado && lenguajeSeleccionado.lecciones.length === 0 && (
           <div className="text-center py-12">
-            <TrendingUp className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">No hay temas disponibles en esta materia</p>
+            <BookOpen className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-400">No hay lecciones disponibles en este lenguaje</p>
           </div>
         )}
-        
-        {/* Mensaje si no hay materias */}
-        {!loading && !error && materias.length === 0 && (
+
+        {/* Mensaje si no hay lenguajes */}
+        {!loading && !error && lenguajes.length === 0 && (
           <div className="glass rounded-2xl p-12 text-center">
             <AlertCircle className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">No hay materias disponibles</h3>
-            <p className="text-gray-400 mb-6">El sistema no pudo cargar las materias. Por favor verifica:</p>
+            <h3 className="text-xl font-bold text-white mb-2">No hay lenguajes disponibles</h3>
+            <p className="text-gray-400 mb-6">El sistema no pudo cargar los lenguajes. Por favor verifica:</p>
             <div className="bg-gray-800/50 rounded-xl p-4 text-left space-y-2 mb-6">
               <p className="text-sm text-gray-300">✓ Backend corriendo en <code className="text-purple-400">http://localhost:8000</code></p>
-              <p className="text-sm text-gray-300">✓ Archivo <code className="text-purple-400">programacion1_temas.json</code> existe</p>
+              <p className="text-sm text-gray-300">✓ Base de datos PostgreSQL con ejercicios cargados</p>
               <p className="text-sm text-gray-300">✓ Revisa la consola del navegador (F12) para más detalles</p>
             </div>
             <button
-              onClick={loadMaterias}
+              onClick={loadLenguajes}
               className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-bold text-white transition-colors"
             >
               Reintentar
@@ -291,4 +290,4 @@ const TrainingPage: React.FC = () => {
   );
 };
 
-export default TrainingPage;
+export default TrainingPageNew;

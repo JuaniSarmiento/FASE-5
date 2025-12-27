@@ -56,7 +56,7 @@ function App() {
               <Route path="risks" element={<ErrorBoundary><RisksPage /></ErrorBoundary>} />
               <Route path="git" element={<ErrorBoundary><GitAnalyticsPage /></ErrorBoundary>} />
               <Route path="traceability" element={<ErrorBoundary><TraceabilityPage /></ErrorBoundary>} />
-              {/* Entrenador Digital - Nuevo sistema */}
+              {/* Entrenador Digital - Sistema jerárquico (Lenguaje → Lección → Ejercicios) */}
               <Route path="training" element={<ErrorBoundary><TrainingPage /></ErrorBoundary>} />
               <Route path="training/exam" element={<ErrorBoundary><TrainingExamPage /></ErrorBoundary>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -59,8 +59,36 @@ except Exception as e:
 # SCHEMAS
 # ============================================================================
 
+class EjercicioInfo(BaseModel):
+    """Información básica de un ejercicio"""
+    id: str
+    titulo: str
+    dificultad: str
+    tiempo_estimado_min: int
+    puntos: int
+
+
+class LeccionInfo(BaseModel):
+    """Información de una lección con sus ejercicios"""
+    id: str
+    nombre: str
+    descripcion: str
+    unit_number: int
+    ejercicios: List[EjercicioInfo]
+    total_puntos: int
+    dificultad: str  # Dificultad promedio de la lección
+
+
+class LenguajeInfo(BaseModel):
+    """Información de un lenguaje de programación con sus lecciones"""
+    language: str
+    nombre_completo: str
+    lecciones: List[LeccionInfo]
+
+
+# LEGACY SCHEMAS (mantener para compatibilidad)
 class TemaInfo(BaseModel):
-    """Información de un tema disponible"""
+    """Información de un tema disponible (LEGACY)"""
     id: str
     nombre: str
     descripcion: str
@@ -69,7 +97,7 @@ class TemaInfo(BaseModel):
 
 
 class MateriaInfo(BaseModel):
-    """Información de una materia con sus temas"""
+    """Información de una materia con sus temas (LEGACY)"""
     materia: str
     codigo: str
     temas: List[TemaInfo]
@@ -77,6 +105,12 @@ class MateriaInfo(BaseModel):
 
 class IniciarEntrenamientoRequest(BaseModel):
     """Request para iniciar una sesión de entrenamiento"""
+    language: str  # "python", "java", etc.
+    unit_number: int  # 1, 2, 3, etc.
+
+
+class IniciarEntrenamientoRequestLegacy(BaseModel):
+    """Request para iniciar una sesión de entrenamiento (LEGACY)"""
     materia_codigo: str
     tema_id: str
 
@@ -260,12 +294,137 @@ def obtener_tema(codigo_materia: str, tema_id: str) -> Optional[Dict[str, Any]]:
 # ENDPOINTS
 # ============================================================================
 
+@router.get("/lenguajes", response_model=List[LenguajeInfo])
+async def obtener_lenguajes_disponibles(db: Session = Depends(get_db)):
+    """
+    Obtiene la lista de lenguajes de programación disponibles con sus lecciones
+    Devuelve estructura jerárquica: Lenguaje → Lecciones → Ejercicios
+
+    Agrupa ejercicios por language y unit (lección)
+    """
+    try:
+        subject_repo = SubjectRepository(db)
+        exercise_repo = ExerciseRepository(db)
+
+        # Diccionario para agrupar por language
+        lenguajes_dict: Dict[str, Dict[str, Any]] = {}
+
+        # Nombres de lecciones por unit
+        NOMBRES_LECCIONES = {
+            1: "Estructuras Secuenciales",
+            2: "Estructuras Condicionales",
+            3: "Bucles y Repetición",
+            4: "Funciones",
+            5: "Estructuras de Datos",
+            6: "Programación Orientada a Objetos",
+            7: "Manejo de Archivos"
+        }
+
+        # Obtener todos los subjects activos
+        subjects = subject_repo.get_all(active_only=True)
+
+        for subject in subjects:
+            # Obtener todos los ejercicios de este subject
+            exercises = exercise_repo.get_by_subject(subject.code)
+
+            if not exercises:
+                continue
+
+            language = subject.language
+            if not language:
+                continue
+
+            # Inicializar lenguaje si no existe
+            if language not in lenguajes_dict:
+                nombre_completo = f"Python 3.11+" if language == "python" else f"Java 17" if language == "java" else language.title()
+                lenguajes_dict[language] = {
+                    "language": language,
+                    "nombre_completo": nombre_completo,
+                    "lecciones_dict": {}
+                }
+
+            # Agrupar ejercicios por unit (lección)
+            for exercise in exercises:
+                unit = exercise.unit or 1
+                unit_key = f"{language}_UNIT_{unit}"
+
+                # Inicializar lección si no existe
+                if unit_key not in lenguajes_dict[language]["lecciones_dict"]:
+                    nombre_leccion = NOMBRES_LECCIONES.get(unit, f"Unidad {unit}")
+                    lenguajes_dict[language]["lecciones_dict"][unit_key] = {
+                        "id": unit_key,
+                        "nombre": nombre_leccion,
+                        "descripcion": f"Ejercicios de {nombre_leccion.lower()}",
+                        "unit_number": unit,
+                        "ejercicios": [],
+                        "total_puntos": 0,
+                        "dificultades": []
+                    }
+
+                # Agregar ejercicio a la lección
+                ejercicio_info = EjercicioInfo(
+                    id=exercise.id,
+                    titulo=exercise.title,
+                    dificultad=exercise.difficulty,
+                    tiempo_estimado_min=exercise.time_min,
+                    puntos=exercise.max_score or 100
+                )
+
+                lenguajes_dict[language]["lecciones_dict"][unit_key]["ejercicios"].append(ejercicio_info)
+                lenguajes_dict[language]["lecciones_dict"][unit_key]["total_puntos"] += exercise.max_score or 100
+                lenguajes_dict[language]["lecciones_dict"][unit_key]["dificultades"].append(exercise.difficulty)
+
+        # Convertir a LenguajeInfo
+        lenguajes_list = []
+        for lang_data in lenguajes_dict.values():
+            lecciones_list = []
+            for leccion_data in lang_data["lecciones_dict"].values():
+                # Determinar dificultad promedio de la lección
+                dificultades = leccion_data["dificultades"]
+                if "Hard" in dificultades or "Difícil" in dificultades:
+                    dificultad_leccion = "Difícil"
+                elif "Medium" in dificultades or "Media" in dificultades:
+                    dificultad_leccion = "Media"
+                else:
+                    dificultad_leccion = "Fácil"
+
+                lecciones_list.append(LeccionInfo(
+                    id=leccion_data["id"],
+                    nombre=leccion_data["nombre"],
+                    descripcion=leccion_data["descripcion"],
+                    unit_number=leccion_data["unit_number"],
+                    ejercicios=leccion_data["ejercicios"],
+                    total_puntos=leccion_data["total_puntos"],
+                    dificultad=dificultad_leccion
+                ))
+
+            # Ordenar lecciones por unit_number
+            lecciones_list.sort(key=lambda x: x.unit_number)
+
+            lenguajes_list.append(LenguajeInfo(
+                language=lang_data["language"],
+                nombre_completo=lang_data["nombre_completo"],
+                lecciones=lecciones_list
+            ))
+
+        logger.info(f"✅ Loaded {len(lenguajes_list)} languages with lecciones from database")
+        return lenguajes_list
+
+    except Exception as e:
+        logger.error(f"Error obteniendo lenguajes desde BD: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Error al cargar los lenguajes disponibles"
+        )
+
+
 @router.get("/materias", response_model=List[MateriaInfo])
 async def obtener_materias_disponibles(db: Session = Depends(get_db)):
     """
     Obtiene la lista de materias disponibles con sus temas desde la base de datos
     Devuelve Python (PROG1) y Java (PROG2) con todos sus ejercicios activos
 
+    LEGACY ENDPOINT - Usar /lenguajes para la nueva estructura jerárquica
     FASE 4.1 - MIGRADO: Ahora lee desde PostgreSQL en lugar de archivos JSON
     """
     try:
@@ -321,128 +480,131 @@ async def iniciar_entrenamiento(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Inicia una nueva sesión de entrenamiento con múltiples ejercicios
+    Inicia una nueva sesión de entrenamiento con múltiples ejercicios de una lección
 
-    FASE 4.2 - MIGRADO: Lee ejercicios, pistas y tests desde base de datos PostgreSQL
+    Carga todos los ejercicios de un lenguaje + unit (lección) desde PostgreSQL
     """
     try:
         # Repositorios
+        subject_repo = SubjectRepository(db)
         exercise_repo = ExerciseRepository(db)
         hint_repo = ExerciseHintRepository(db)
         test_repo = ExerciseTestRepository(db)
 
-        # Cargar ejercicio desde base de datos
-        exercise = exercise_repo.get_by_id(request.tema_id)
+        # Buscar subject por language
+        subjects = subject_repo.get_all(active_only=True)
+        subject_found = None
+        for subj in subjects:
+            if subj.language == request.language:
+                subject_found = subj
+                break
 
-        if exercise:
-            # Ejercicio encontrado en base de datos
-            logger.info(f"✅ Ejercicio encontrado en BD: {request.tema_id}")
+        if not subject_found:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Lenguaje '{request.language}' no encontrado"
+            )
 
+        # Cargar todos los ejercicios de este subject + unit
+        all_exercises = exercise_repo.get_by_subject(subject_found.code)
+        exercises_of_unit = [ex for ex in all_exercises if ex.unit == request.unit_number]
+
+        if not exercises_of_unit:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No hay ejercicios disponibles para {request.language} - Unidad {request.unit_number}"
+            )
+
+        logger.info(f"✅ Encontrados {len(exercises_of_unit)} ejercicios para {request.language} - Unidad {request.unit_number}")
+
+        # Construir lista de ejercicios con hints y tests
+        ejercicios_adaptados = []
+        tiempo_total = 0
+
+        for exercise in exercises_of_unit:
             # Cargar hints y tests desde BD
-            hints = hint_repo.get_by_exercise(request.tema_id)
-            tests = test_repo.get_by_exercise(request.tema_id)
+            hints = hint_repo.get_by_exercise(exercise.id)
+            tests = test_repo.get_by_exercise(exercise.id)
 
-            # Adaptar formato de hints y tests para la sesión
+            # Adaptar formato de hints y tests
             pistas_adaptadas = [hint.content for hint in sorted(hints, key=lambda h: h.hint_number)]
             tests_adaptados = [
                 {
                     'input': test.input,
-                    'expected': test.expected  # FIX: El campo se llama 'expected' no 'expected_output'
+                    'expected': test.expected
                 }
                 for test in sorted(tests, key=lambda t: t.test_number)
             ]
 
             # Crear estructura de ejercicio para sesión
             ejercicio_adaptado = {
-                'consigna': exercise.description,
+                'id': exercise.id,
+                'consigna': exercise.mission_markdown or exercise.description,
                 'codigo_inicial': exercise.starter_code or "",
                 'tests': tests_adaptados,
-                'pistas': pistas_adaptadas
-            }
-
-            # Info del tema
-            tema_info = {
-                'id': exercise.id,
-                'nombre': exercise.title,
-                'descripcion': exercise.description[:100] + "..." if len(exercise.description or "") > 100 else (exercise.description or ""),
+                'pistas': pistas_adaptadas,
+                'titulo': exercise.title,
                 'dificultad': exercise.difficulty,
-                'tiempo_estimado_min': exercise.time_min
+                'max_score': exercise.max_score or 100
             }
 
-            ejercicios = [ejercicio_adaptado]
-            total_ejercicios = 1
-            tiempo_limite = exercise.time_min
+            ejercicios_adaptados.append(ejercicio_adaptado)
+            tiempo_total += exercise.time_min
 
-        else:
-            # Fallback: Intentar cargar del sistema antiguo de JSON
-            logger.info(f"Ejercicio no encontrado en BD, intentando sistema antiguo: {request.tema_id}")
-            tema = obtener_tema(request.materia_codigo, request.tema_id)
+        # Info de la lección
+        NOMBRES_LECCIONES = {
+            1: "Estructuras Secuenciales",
+            2: "Estructuras Condicionales",
+            3: "Bucles y Repetición",
+            4: "Funciones",
+            5: "Estructuras de Datos",
+            6: "Programación Orientada a Objetos",
+            7: "Manejo de Archivos"
+        }
+        nombre_leccion = NOMBRES_LECCIONES.get(request.unit_number, f"Unidad {request.unit_number}")
 
-            if not tema:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Ejercicio '{request.tema_id}' no encontrado en ningún sistema"
-                )
+        ejercicio_inicial = ejercicios_adaptados[0]
 
-            # Verificar si el tema tiene ejercicios múltiples o uno solo
-            if 'ejercicios' in tema:
-                ejercicios = tema['ejercicios']
-                total_ejercicios = len(ejercicios)
-                tema_info = tema
-                tiempo_limite = tema['tiempo_estimado_min']
-            elif 'ejercicio' in tema:
-                # Formato antiguo con un solo ejercicio
-                ejercicios = [tema['ejercicio']]
-                total_ejercicios = 1
-                tema_info = tema
-                tiempo_limite = tema['tiempo_estimado_min']
-            else:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Tema sin ejercicios configurados"
-                )
-
-        ejercicio_inicial = ejercicios[0]
-        
         # Crear ID único para la sesión
         session_id = str(uuid.uuid4())
-        
+
         # Calcular tiempos
         inicio = datetime.now()
-        fin_estimado = inicio + timedelta(minutes=tiempo_limite)
-        
+        fin_estimado = inicio + timedelta(minutes=tiempo_total)
+
         # Crear datos de sesión
         datos_sesion = {
             'user_id': current_user.id,
-            'materia_codigo': request.materia_codigo,
-            'tema_id': request.tema_id,
-            'ejercicios': ejercicios,
-            'total_ejercicios': total_ejercicios,
+            'language': request.language,
+            'unit_number': request.unit_number,
+            'ejercicios': ejercicios_adaptados,
+            'total_ejercicios': len(ejercicios_adaptados),
             'ejercicio_actual_index': 0,
             'resultados': [],
+            'pistas_usadas': [],  # [(ejercicio_index, numero_pista, penalizacion)]
             'inicio': inicio,
             'fin_estimado': fin_estimado,
-            'tiempo_limite_min': tiempo_limite,
+            'tiempo_limite_min': tiempo_total,
             'finalizado': False
         }
-        
+
         # Guardar sesión en Redis o memoria
         guardar_sesion(session_id, datos_sesion)
-        logger.info(f"✅ Nueva sesión creada: {session_id} para ejercicio {request.tema_id}")
-        
+        logger.info(f"✅ Nueva sesión creada: {session_id} para {request.language} - Unidad {request.unit_number}")
+
         # Construir respuesta con el primer ejercicio
         return SesionEntrenamiento(
             session_id=session_id,
-            materia=tema_info.get('nombre', request.materia_codigo),
-            tema=tema_info.get('nombre', request.tema_id),
+            materia=f"{request.language.title()} - {nombre_leccion}",
+            tema=nombre_leccion,
             ejercicio_actual=EjercicioActual(
                 numero=1,
                 consigna=ejercicio_inicial['consigna'],
                 codigo_inicial=ejercicio_inicial['codigo_inicial']
             ),
-            total_ejercicios=total_ejercicios,
+            total_ejercicios=len(ejercicios_adaptados),
             ejercicios_completados=0,
-            tiempo_limite_min=tiempo_limite,
+            tiempo_limite_min=tiempo_total,
             inicio=inicio,
             fin_estimado=fin_estimado
         )

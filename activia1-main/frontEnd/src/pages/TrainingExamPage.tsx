@@ -26,8 +26,8 @@ const TrainingExamPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
-  const { materia_codigo, tema_id } = location.state || {};
-  
+  const { language, unit_number, leccion_nombre } = location.state || {};
+
   const [sesion, setSesion] = useState<SesionEntrenamiento | null>(null);
   const [ejercicioActual, setEjercicioActual] = useState<EjercicioActual | null>(null);
   const [codigo, setCodigo] = useState<string>('');
@@ -39,37 +39,37 @@ const TrainingExamPage: React.FC = () => {
   const [ejerciciosCompletados, setEjerciciosCompletados] = useState<number>(0);
   const [mostrarResultadoEjercicio, setMostrarResultadoEjercicio] = useState<boolean>(false);
   const [ultimoResultado, setUltimoResultado] = useState<any>(null);
-  
+
   // Estados para pistas y corrección IA
   const [pistaActual, setPistaActual] = useState<PistaResponse | null>(null);
   const [numeroPistaActual, setNumeroPistaActual] = useState<number>(0);
   const [correccionIA, setCorreccionIA] = useState<CorreccionIAResponse | null>(null);
   const [loadingPista, setLoadingPista] = useState<boolean>(false);
   const [loadingIA, setLoadingIA] = useState<boolean>(false);
-  
+
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!materia_codigo || !tema_id) {
+    if (!language || !unit_number) {
       navigate('/training');
       return;
     }
-    
+
     iniciarSesion();
-    
+
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
-  }, [materia_codigo, tema_id]);
+  }, [language, unit_number]);
 
   const iniciarSesion = async () => {
     try {
       setLoading(true);
       const data = await trainingService.iniciarEntrenamiento({
-        materia_codigo,
-        tema_id
+        language,
+        unit_number
       });
       
       setSesion(data);
