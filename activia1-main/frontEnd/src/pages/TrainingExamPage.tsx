@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
+import ReactMarkdown from 'react-markdown';
 import {
   Clock,
   Send,
@@ -431,9 +432,29 @@ const TrainingExamPage: React.FC = () => {
             
             <div className="bg-gray-800/50 rounded-xl p-6">
               <h3 className="text-lg font-semibold text-white mb-3">Consigna:</h3>
-              <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
-                {ejercicioActual?.consigna}
-              </p>
+              <div className="prose prose-invert prose-sm max-w-none text-gray-300">
+                <ReactMarkdown
+                  components={{
+                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-white mb-3" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-xl font-bold text-white mb-2 mt-4" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-lg font-semibold text-white mb-2 mt-3" {...props} />,
+                    h4: ({node, ...props}) => <h4 className="text-base font-semibold text-gray-200 mb-1 mt-2" {...props} />,
+                    p: ({node, ...props}) => <p className="text-gray-300 mb-2 leading-relaxed" {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc list-inside text-gray-300 mb-2 space-y-1" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal list-inside text-gray-300 mb-2 space-y-1" {...props} />,
+                    li: ({node, ...props}) => <li className="text-gray-300" {...props} />,
+                    code: ({node, inline, ...props}: any) => 
+                      inline 
+                        ? <code className="bg-gray-700/50 text-purple-400 px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+                        : <code className="block bg-gray-900 text-gray-300 p-3 rounded-lg overflow-x-auto text-sm font-mono my-2" {...props} />,
+                    strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />,
+                    em: ({node, ...props}) => <em className="italic text-gray-200" {...props} />,
+                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-purple-500 pl-4 italic text-gray-400 my-2" {...props} />,
+                  }}
+                >
+                  {ejercicioActual?.consigna || ''}
+                </ReactMarkdown>
+              </div>
             </div>
           </div>
 

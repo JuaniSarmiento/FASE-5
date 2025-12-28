@@ -25,7 +25,7 @@
     "hidden_tests": [
       {
         "input": "",
-        "expected": "total == 42600 and promedio == 14200.00"
+        "expected": ".*Total trimestre:\\s*\\$42600.*Promedio mensual:\\s*\\$14200\\.00.*"
       }
     ]
   },
@@ -109,7 +109,7 @@
     "hidden_tests": [
       {
         "input": "",
-        "expected": "promedio == 24.44 and temp_max == 26.0 and temp_min == 22.8 and dias_sobre_promedio == 3"
+        "expected": ".*Promedio:\\s*24\\.4[34]°C.*Máxima:\\s*26\\.0°C.*Mínima:\\s*22\\.8°C.*Días sobre promedio:\\s*3.*"
       }
     ]
   }

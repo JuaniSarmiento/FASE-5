@@ -775,8 +775,8 @@ async def submit_ejercicio(
                         is_regex = any(char in expected_str for char in ['.*', '.+', '\\d', '\\w', '[', ']', '(', ')', '|', '^', '$'])
 
                         if is_regex:
-                            # Usar regex matching
-                            if re.search(expected_str, actual_output):
+                            # Usar regex matching con DOTALL para que . coincida con saltos de línea
+                            if re.search(expected_str, actual_output, re.DOTALL):
                                 tests_passed += 1
                                 logger.info(f"✓ Test {i} PASADO (regex match)")
                             else:

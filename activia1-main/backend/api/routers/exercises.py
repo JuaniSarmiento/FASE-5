@@ -109,7 +109,8 @@ def execute_python_code(code: str, test_input: str, timeout_seconds: int = 5) ->
 
     DANGEROUS_PATTERNS = [
         '__import__', 'exec(', 'eval(', 'compile(',
-        'open(', 'file(', 'input(',
+        'open(', 'file(',
+        # 'input(' - PERMITIDO: necesario para ejercicios de entrada del usuario
         'globals(', 'locals(', 'vars(',
         'getattr(', 'setattr(', 'delattr(',
         '__class__', '__bases__', '__subclasses__',
@@ -140,10 +141,10 @@ def execute_python_code(code: str, test_input: str, timeout_seconds: int = 5) ->
     # ==========================================================================
     sandbox_wrapper = '''
 import sys
-import resource
 
 # Limit resources (Linux/Mac only)
 try:
+    import resource
     # Limit memory to 50MB
     resource.setrlimit(resource.RLIMIT_AS, (50 * 1024 * 1024, 50 * 1024 * 1024))
     # Limit CPU time to timeout + 1 second
@@ -152,12 +153,15 @@ try:
     resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
     # Limit number of processes
     resource.setrlimit(resource.RLIMIT_NPROC, (0, 0))
-except (AttributeError, ValueError):
-    pass  # Windows doesn't support resource limits
+except (ImportError, AttributeError, ValueError):
+    pass  # Windows doesn't have resource module or doesn't support some limits
 
 # Restrict builtins
+import math
 restricted_builtins = {{
     'print': print,
+    'input': input,  # Necesario para ejercicios de entrada del usuario
+    'math': math,  # Necesario para ejercicios matemáticos
     'len': len,
     'range': range,
     'int': int,
