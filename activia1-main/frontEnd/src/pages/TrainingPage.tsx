@@ -133,10 +133,16 @@ const TrainingPage: React.FC = () => {
           </div>
         )}
 
-        {/* Selector de Lenguaje (Combo Dropdown) */}
+        {/* Selectores de Lenguaje y Lección (con animación) */}
         {lenguajes.length > 0 && (
-          <div className="mb-8">
-            <div className="glass rounded-2xl p-6">
+          <div className={`grid gap-6 mb-8 transition-all duration-500 ${
+            lenguajeSeleccionado && lenguajeSeleccionado.lecciones.length > 0
+              ? 'grid-cols-1 md:grid-cols-2'
+              : 'grid-cols-1'
+          }`}>
+
+            {/* Selector de Lenguaje */}
+            <div className="glass rounded-2xl p-6 transition-all duration-500">
               <label className="block text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-purple-400" />
                 Selecciona un Lenguaje
@@ -161,7 +167,7 @@ const TrainingPage: React.FC = () => {
 
               {/* Info de lenguaje seleccionado */}
               {lenguajeSeleccionado && (
-                <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+                <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl animate-fade-in">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-bold text-white">{lenguajeSeleccionado.nombre_completo}</h3>
@@ -175,59 +181,57 @@ const TrainingPage: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-        )}
 
-        {/* Selector de Lección (Combo Dropdown) */}
-        {lenguajeSeleccionado && lenguajeSeleccionado.lecciones.length > 0 && (
-          <div className="mb-8">
-            <div className="glass rounded-2xl p-6">
-              <label className="block text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-purple-400" />
-                Selecciona una Lección
-              </label>
-              <select
-                value={leccionSeleccionada?.id || ''}
-                onChange={(e) => {
-                  const selected = lenguajeSeleccionado.lecciones.find(l => l.id === e.target.value);
-                  setLeccionSeleccionada(selected || null);
-                  console.log('📖 Lección seleccionada:', selected?.nombre);
-                }}
-                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer hover:bg-gray-800/70"
-              >
-                <option value="" className="bg-gray-800">Elige una lección...</option>
-                {lenguajeSeleccionado.lecciones.map((leccion) => (
-                  <option key={leccion.id} value={leccion.id} className="bg-gray-800">
-                    {leccion.nombre} ({leccion.ejercicios.length} ejercicios - {leccion.total_puntos} pts)
-                  </option>
-                ))}
-              </select>
+            {/* Selector de Lección (aparece con animación) */}
+            {lenguajeSeleccionado && lenguajeSeleccionado.lecciones.length > 0 && (
+              <div className="glass rounded-2xl p-6 animate-slide-in-right">
+                <label className="block text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-400" />
+                  Selecciona una Lección
+                </label>
+                <select
+                  value={leccionSeleccionada?.id || ''}
+                  onChange={(e) => {
+                    const selected = lenguajeSeleccionado.lecciones.find(l => l.id === e.target.value);
+                    setLeccionSeleccionada(selected || null);
+                    console.log('📖 Lección seleccionada:', selected?.nombre);
+                  }}
+                  className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer hover:bg-gray-800/70"
+                >
+                  <option value="" className="bg-gray-800">Elige una lección...</option>
+                  {lenguajeSeleccionado.lecciones.map((leccion) => (
+                    <option key={leccion.id} value={leccion.id} className="bg-gray-800">
+                      {leccion.nombre} ({leccion.ejercicios.length} ejercicios - {leccion.total_puntos} pts)
+                    </option>
+                  ))}
+                </select>
 
-              {/* Info de lección seleccionada */}
-              {leccionSeleccionada && (
-                <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-bold text-white">{leccionSeleccionada.nombre}</h3>
-                      <p className="text-sm text-gray-400">{leccionSeleccionada.descripcion}</p>
+                {/* Info de lección seleccionada */}
+                {leccionSeleccionada && (
+                  <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl animate-fade-in">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold text-white">{leccionSeleccionada.nombre}</h3>
+                        <p className="text-sm text-gray-400">{leccionSeleccionada.descripcion}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-purple-400">{leccionSeleccionada.ejercicios.length}</p>
+                        <p className="text-xs text-gray-400">Ejercicios</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-purple-400">{leccionSeleccionada.ejercicios.length}</p>
-                      <p className="text-xs text-gray-400">Ejercicios</p>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getDifficultyColor(leccionSeleccionada.dificultad)}`}>
+                        {leccionSeleccionada.dificultad}
+                      </span>
+                      <span className="px-3 py-1 rounded-lg text-xs font-medium bg-yellow-700/30 text-yellow-300 flex items-center gap-1">
+                        <Award className="w-3 h-3" />
+                        {leccionSeleccionada.total_puntos} pts totales
+                      </span>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getDifficultyColor(leccionSeleccionada.dificultad)}`}>
-                      {leccionSeleccionada.dificultad}
-                    </span>
-                    <span className="px-3 py-1 rounded-lg text-xs font-medium bg-yellow-700/30 text-yellow-300 flex items-center gap-1">
-                      <Award className="w-3 h-3" />
-                      {leccionSeleccionada.total_puntos} pts totales
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
